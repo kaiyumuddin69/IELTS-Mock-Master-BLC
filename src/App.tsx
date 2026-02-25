@@ -34,7 +34,18 @@ import {
   signInWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  doc, 
+  setDoc, 
+  getDoc, 
+  collection, 
+  addDoc, 
+  serverTimestamp, 
+  query, 
+  where, 
+  getDocs, 
+  orderBy 
+} from 'firebase/firestore';
 
 // --- Components ---
 
@@ -140,6 +151,22 @@ export default function App() {
   const [passageWidth, setPassageWidth] = useState(50); // percentage
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userResults, setUserResults] = useState<any[]>([]);
+
+  const fetchUserResults = async (userId: string) => {
+    try {
+      const q = query(
+        collection(db, 'results'),
+        where('userId', '==', userId),
+        orderBy('timestamp', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setUserResults(results);
+    } catch (e) {
+      console.error("Error fetching results", e);
+    }
+  };
   
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -152,6 +179,11 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        fetchUserResults(currentUser.uid);
+      } else {
+        setUserResults([]);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
@@ -240,6 +272,8 @@ export default function App() {
           total: calculateScore().total,
           timestamp: serverTimestamp()
         });
+        // Refresh results
+        fetchUserResults(user.uid);
       } catch (e) {
         console.error("Failed to save to Firebase", e);
       }
@@ -410,103 +444,143 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-4"
             >
               <motion.div 
                 initial={{ scale: 0.9, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
-                className="bg-white rounded-[40px] p-10 max-w-md w-full shadow-2xl border border-slate-100 relative"
+                className="bg-white rounded-[48px] overflow-hidden max-w-4xl w-full shadow-premium flex flex-col md:flex-row relative"
               >
                 <button 
                   onClick={() => setShowAuthModal(false)}
-                  className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute top-8 right-8 text-slate-400 hover:text-slate-600 transition-colors z-20"
                 >
-                  <X size={24} />
+                  <X size={28} />
                 </button>
 
-                <div className="text-center mb-8">
-                  <h3 className="text-3xl font-black text-slate-900 mb-2">
-                    {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
-                  </h3>
-                  <p className="text-slate-500 font-medium">
-                    {authMode === 'login' ? 'Sign in to continue your practice' : 'Start your IELTS journey today'}
-                  </p>
-                </div>
+                {/* Left Side: Branding/Info */}
+                <div className="md:w-5/12 bg-ielts-blue p-12 text-white flex flex-col justify-between relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+                    <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
+                  </div>
+                  
+                  <div className="relative z-10">
+                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-ielts-blue font-black text-2xl mb-8 shadow-lg">I</div>
+                    <h3 className="text-4xl font-black mb-4 leading-tight">Master Your IELTS Journey</h3>
+                    <p className="text-blue-100 text-lg font-medium opacity-80">Join thousands of candidates achieving their dream scores with our authentic simulation platform.</p>
+                  </div>
 
-                <form onSubmit={handleEmailAuth} className="space-y-4">
-                  {authMode === 'signup' && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Full Name</label>
-                      <input 
-                        type="text" 
-                        required
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none transition-all font-medium"
-                        placeholder="John Doe"
-                      />
+                  <div className="relative z-10 space-y-4">
+                    <div className="flex items-center gap-3 text-sm font-bold">
+                      <div className="w-5 h-5 rounded-full bg-blue-400/30 flex items-center justify-center"><CheckCircle size={12} /></div>
+                      Authentic Exam Interface
                     </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Email Address</label>
-                    <input 
-                      type="email" 
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none transition-all font-medium"
-                      placeholder="name@example.com"
-                    />
+                    <div className="flex items-center gap-3 text-sm font-bold">
+                      <div className="w-5 h-5 rounded-full bg-blue-400/30 flex items-center justify-center"><CheckCircle size={12} /></div>
+                      Real-time Performance Analysis
+                    </div>
+                    <div className="flex items-center gap-3 text-sm font-bold">
+                      <div className="w-5 h-5 rounded-full bg-blue-400/30 flex items-center justify-center"><CheckCircle size={12} /></div>
+                      Secure Cloud Progress Tracking
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Password</label>
-                    <input 
-                      type="password" 
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none transition-all font-medium"
-                      placeholder="••••••••"
-                    />
-                  </div>
-
-                  {authError && (
-                    <p className="text-rose-500 text-xs font-bold text-center bg-rose-50 p-3 rounded-xl border border-rose-100">
-                      {authError}
-                    </p>
-                  )}
-
-                  <button 
-                    type="submit"
-                    className="w-full bg-ielts-blue text-white py-4 rounded-2xl font-black text-lg hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-100 mt-2"
-                  >
-                    {authMode === 'login' ? 'Sign In' : 'Sign Up'}
-                  </button>
-                </form>
-
-                <div className="mt-8 flex items-center gap-4">
-                  <div className="h-px bg-slate-100 flex-1" />
-                  <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">OR</span>
-                  <div className="h-px bg-slate-100 flex-1" />
                 </div>
 
-                <button 
-                  onClick={loginWithGoogle}
-                  className="w-full mt-6 flex items-center justify-center gap-3 py-4 border-2 border-slate-100 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 transition-all"
-                >
-                  <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
-                  Continue with Google
-                </button>
+                {/* Right Side: Form */}
+                <div className="md:w-7/12 p-12 md:p-16 bg-white">
+                  <div className="max-w-md mx-auto">
+                    <div className="mb-10">
+                      <h3 className="text-3xl font-black text-slate-900 mb-2">
+                        {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
+                      </h3>
+                      <p className="text-slate-500 font-medium">
+                        {authMode === 'login' ? 'Sign in to access your practice history' : 'Start your journey to a Band 9.0'}
+                      </p>
+                    </div>
 
-                <p className="text-center mt-8 text-sm font-medium text-slate-500">
-                  {authMode === 'login' ? "Don't have an account?" : "Already have an account?"}
-                  <button 
-                    onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
-                    className="ml-2 text-ielts-blue font-black hover:underline"
-                  >
-                    {authMode === 'login' ? 'Sign Up' : 'Sign In'}
-                  </button>
-                </p>
+                    <form onSubmit={handleEmailAuth} className="space-y-5">
+                      {authMode === 'signup' && (
+                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Full Name</label>
+                          <input 
+                            type="text" 
+                            required
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-ielts-blue/30 outline-none transition-all font-medium text-slate-700"
+                            placeholder="e.g. John Smith"
+                          />
+                        </motion.div>
+                      )}
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Email Address</label>
+                        <input 
+                          type="email" 
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-ielts-blue/30 outline-none transition-all font-medium text-slate-700"
+                          placeholder="name@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Password</label>
+                        <input 
+                          type="password" 
+                          required
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-ielts-blue/30 outline-none transition-all font-medium text-slate-700"
+                          placeholder="••••••••"
+                        />
+                      </div>
+
+                      {authError && (
+                        <motion.p 
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="text-rose-500 text-xs font-bold text-center bg-rose-50 p-4 rounded-2xl border border-rose-100"
+                        >
+                          {authError}
+                        </motion.p>
+                      )}
+
+                      <button 
+                        type="submit"
+                        className="w-full bg-ielts-blue text-white py-5 rounded-2xl font-black text-lg hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 mt-4 active:scale-[0.98]"
+                      >
+                        {authMode === 'login' ? 'Sign In' : 'Sign Up'}
+                      </button>
+                    </form>
+
+                    <div className="mt-8 flex items-center gap-4">
+                      <div className="h-px bg-slate-100 flex-1" />
+                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">OR CONTINUE WITH</span>
+                      <div className="h-px bg-slate-100 flex-1" />
+                    </div>
+
+                    <button 
+                      onClick={loginWithGoogle}
+                      className="w-full mt-6 flex items-center justify-center gap-4 py-4 border-2 border-slate-100 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-200 transition-all active:scale-[0.98]"
+                    >
+                      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+                      Google Account
+                    </button>
+
+                    <p className="text-center mt-10 text-sm font-medium text-slate-500">
+                      {authMode === 'login' ? "New to IELTS Mock Master?" : "Already have an account?"}
+                      <button 
+                        onClick={() => {
+                          setAuthMode(authMode === 'login' ? 'signup' : 'login');
+                          setAuthError('');
+                        }}
+                        className="ml-2 text-ielts-blue font-black hover:underline"
+                      >
+                        {authMode === 'login' ? 'Create Account' : 'Sign In'}
+                      </button>
+                    </p>
+                  </div>
+                </div>
               </motion.div>
             </motion.div>
           )}
@@ -518,11 +592,17 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="mb-12 text-center"
           >
-            <h2 className="text-5xl font-extrabold text-slate-900 mb-4 tracking-tight">Master Your IELTS Journey</h2>
-            <p className="text-slate-500 text-xl max-w-2xl mx-auto leading-relaxed">Experience the most authentic computer-delivered IELTS environment with real-time feedback.</p>
+            <h2 className="text-5xl font-extrabold text-slate-900 mb-4 tracking-tight">
+              {user ? `Welcome back, ${user.displayName?.split(' ')[0] || 'Candidate'}` : 'Master Your IELTS Journey'}
+            </h2>
+            <p className="text-slate-500 text-xl max-w-2xl mx-auto leading-relaxed">
+              {user 
+                ? "Ready to continue your practice? Pick a module below to start improving your score."
+                : "Experience the most authentic computer-delivered IELTS environment with real-time feedback."}
+            </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
             {[
               { id: 'listening', icon: <Headphones />, title: 'Listening', color: 'bg-blue-600', desc: '30 mins • 40 questions' },
               { id: 'reading', icon: <BookOpen />, title: 'Reading', color: 'bg-emerald-600', desc: '60 mins • 40 questions' },
@@ -551,6 +631,62 @@ export default function App() {
               </motion.button>
             ))}
           </div>
+
+          {user && userResults.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-12"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="text-3xl font-black text-slate-900">Your Practice History</h3>
+                <div className="px-4 py-1.5 bg-ielts-blue/10 text-ielts-blue rounded-full text-xs font-black uppercase tracking-widest">
+                  {userResults.length} Tests Completed
+                </div>
+              </div>
+              <div className="grid gap-4">
+                {userResults.map((res, idx) => (
+                  <motion.div 
+                    key={res.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:border-ielts-blue/30 transition-all"
+                  >
+                    <div className="flex items-center gap-6">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-md ${
+                        res.module === 'listening' ? 'bg-blue-600' :
+                        res.module === 'reading' ? 'bg-emerald-600' :
+                        res.module === 'writing' ? 'bg-amber-600' : 'bg-rose-600'
+                      }`}>
+                        {res.module === 'listening' ? <Headphones size={20} /> :
+                         res.module === 'reading' ? <BookOpen size={20} /> :
+                         res.module === 'writing' ? <PenTool size={20} /> : <Mic size={20} />}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-800 capitalize">{res.module} Practice</h4>
+                        <p className="text-xs text-slate-400 font-medium">
+                          {res.timestamp?.toDate ? new Date(res.timestamp.toDate()).toLocaleDateString('en-GB', {
+                            day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                          }) : 'Just now'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-8">
+                      <div className="text-right">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Score</div>
+                        <div className="text-xl font-black text-slate-800">{res.score} / {res.total}</div>
+                      </div>
+                      <div className="text-right min-w-[80px]">
+                        <div className="text-[10px] font-black text-ielts-blue uppercase tracking-widest mb-1">Band</div>
+                        <div className="text-2xl font-black text-ielts-blue">{getBandScore(res.score, res.total).toFixed(1)}</div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
         </main>
       </div>
     );
