@@ -6,8 +6,10 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
   --color-ielts-blue: #005691;
+  --color-ielts-red: #e31837;
   --color-ielts-light-blue: #eef6fb;
   --color-ielts-gray: #f4f4f4;
+  --color-ielts-border: #d1d5db;
 }
 
 @layer base {
@@ -32,6 +34,10 @@
   @apply h-full overflow-y-auto p-8 bg-white;
 }
 
+.questions-container {
+  @apply h-full overflow-y-auto p-8 bg-white border-l border-slate-200;
+}
+
 @layer utilities {
   .glass-effect {
     background: rgba(255, 255, 255, 0.7);
@@ -42,7 +48,7 @@
   .text-gradient {
     background: linear-gradient(135deg, #005691 0%, #0072ff 100%);
     -webkit-background-clip: text;
-    -webkit-fill-color: transparent;
+    -webkit-text-fill-color: transparent;
   }
 
   .shadow-premium {
@@ -50,3 +56,64 @@
   }
 }
 
+/* Real IELTS Interface Styles */
+.ielts-test-header {
+  @apply h-14 bg-white border-b border-slate-300 flex items-center justify-between px-4 text-sm font-medium;
+}
+
+.ielts-test-subheader {
+  @apply h-16 bg-slate-100 border-b border-slate-300 flex flex-col justify-center px-6 text-sm;
+}
+
+.ielts-test-footer {
+  @apply h-14 bg-white border-t border-slate-300 flex items-center justify-between px-4 text-sm;
+}
+
+.ielts-nav-btn {
+  @apply w-10 h-10 bg-white border border-slate-300 text-slate-600 flex items-center justify-center rounded hover:bg-slate-50 transition-colors;
+}
+
+.ielts-question-nav-item {
+  @apply w-8 h-10 flex items-center justify-center text-xs font-bold cursor-pointer hover:bg-slate-100 transition-all relative border-b-2 border-transparent;
+}
+
+.ielts-question-nav-item.active {
+  @apply border-ielts-blue text-ielts-blue;
+}
+
+.ielts-question-nav-item.answered {
+  @apply text-slate-900;
+}
+
+.ielts-question-nav-item.answered::after {
+  content: '';
+  @apply absolute bottom-1 left-2 right-2 h-0.5 bg-slate-400 rounded-full;
+}
+
+.ielts-logo-box {
+  @apply bg-ielts-red text-white p-1 font-bold text-lg leading-none rounded-sm flex items-center justify-center;
+}
+
+.ielts-input {
+  @apply border border-slate-300 rounded-md px-3 py-1 outline-none focus:border-ielts-blue transition-colors bg-white shadow-sm;
+}
+
+.ielts-radio-circle {
+  @apply w-5 h-5 rounded-full border border-slate-300 flex items-center justify-center transition-all bg-white;
+}
+
+.ielts-radio-circle.selected {
+  @apply border-ielts-blue;
+}
+
+.ielts-radio-dot {
+  @apply w-2.5 h-2.5 rounded-full bg-ielts-blue;
+}
+
+.ielts-btn-submit {
+  @apply bg-white border border-slate-300 px-6 py-1.5 rounded-md text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm active:scale-95;
+}
+
+.ielts-btn-nav {
+  @apply w-10 h-10 bg-white border border-slate-300 text-slate-600 flex items-center justify-center rounded-md hover:bg-slate-50 transition-colors shadow-sm active:scale-95;
+}

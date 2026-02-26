@@ -17,9 +17,13 @@ import {
   X,
   Play,
   Volume2,
+  Volume1,
   Save,
   Maximize,
-  AlertTriangle
+  AlertTriangle,
+  Edit3,
+  Settings,
+  MoreVertical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MOCK_TEST_DATA, TestModule, Question } from './types';
@@ -64,12 +68,10 @@ const Timer = ({ duration, onTimeUp }: { duration: number; onTimeUp: () => void 
   }, [timeLeft, onTimeUp]);
 
   const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-ielts-blue text-white rounded-md font-mono font-bold">
-      <Clock size={18} />
-      <span>{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</span>
+    <div className="text-slate-900 font-bold text-lg">
+      {minutes} minutes left
     </div>
   );
 };
@@ -77,65 +79,23 @@ const Timer = ({ duration, onTimeUp }: { duration: number; onTimeUp: () => void 
 const AudioPlayer = ({ src, onEnded }: { src: string; onEnded?: () => void }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [hasPlayed, setHasPlayed] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
 
-  const togglePlay = () => {
-    if (hasPlayed && !isPlaying) return;
+  useEffect(() => {
     if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-        setHasPlayed(true);
-      }
-      setIsPlaying(!isPlaying);
+      audioRef.current.play().catch(e => console.error("Audio play failed", e));
+      setIsPlaying(true);
     }
-  };
-
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
-      setCurrentTime(audioRef.current.currentTime);
-    }
-  };
-
-  const formatTime = (time: number) => {
-    const min = Math.floor(time / 60);
-    const sec = Math.floor(time % 60);
-    return `${min}:${sec.toString().padStart(2, '0')}`;
-  };
+  }, [src]);
 
   return (
-    <div className="fixed top-16 left-1/2 -translate-x-1/2 w-full max-w-xl bg-slate-50 border border-slate-200 rounded-lg p-2 flex items-center gap-4 shadow-lg z-50">
-      <button 
-        onClick={togglePlay}
-        disabled={hasPlayed && !isPlaying}
-        className={`p-2 rounded-full ${hasPlayed && !isPlaying ? 'bg-slate-200 text-slate-400' : 'bg-ielts-blue text-white hover:bg-blue-700'} transition-colors`}
-      >
-        {isPlaying ? <Volume2 size={18} /> : <Play size={18} />}
-      </button>
-      <div className="text-xs font-mono text-slate-500 min-w-[35px]">{formatTime(currentTime)}</div>
-      <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-        <div 
-          className="h-full bg-ielts-blue transition-all duration-100" 
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-      <div className="text-xs font-mono text-slate-500 min-w-[35px]">{formatTime(duration)}</div>
-      <audio 
-        ref={audioRef} 
-        src={src} 
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
-        onEnded={() => {
-          setIsPlaying(false);
-          onEnded?.();
-        }}
-      />
-    </div>
+    <audio 
+      ref={audioRef} 
+      src={src} 
+      onEnded={() => {
+        setIsPlaying(false);
+        onEnded?.();
+      }}
+    />
   );
 };
 
@@ -328,30 +288,32 @@ export default function App() {
     switch (q.type) {
       case 'mcq':
       case 'tfng':
-        const opts = q.type === 'tfng' ? ['YES', 'NO', 'NOT GIVEN'] : (q.options || []);
+        const opts = q.options || (q.type === 'tfng' ? ['TRUE', 'FALSE', 'NOT GIVEN'] : []);
+        
         return (
-          <div key={q.id} className="mb-8 group">
-            <div className="flex gap-4 items-start">
-              <div className={`w-8 h-8 rounded border-2 flex items-center justify-center font-bold text-sm shrink-0 transition-colors ${isAnswered ? 'bg-slate-100 border-slate-300 text-slate-600' : 'border-ielts-blue text-ielts-blue'}`}>
-                {q.id}
-              </div>
-              <div className="flex-1">
-                <p className="font-medium mb-4 text-slate-800">{q.question}</p>
-                <div className="space-y-3">
-                  {opts.map(opt => (
-                    <label key={opt} className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition-all">
-                      <input 
-                        type="radio" 
-                        name={q.id} 
-                        value={opt}
-                        checked={answers[q.id] === opt}
-                        onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                        className="w-4 h-4 text-ielts-blue"
-                      />
-                      <span className="text-sm font-medium text-slate-700">{opt}</span>
-                    </label>
-                  ))}
-                </div>
+          <div key={q.id} className="mb-8 flex items-start gap-4">
+            <div className="w-8 h-8 flex items-center justify-center text-sm font-bold text-slate-800 shrink-0">{q.id}</div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-slate-900 mb-4 leading-relaxed">{q.question}</p>
+              <div className="flex flex-col gap-3">
+                {opts.map((opt, i) => (
+                  <label key={opt} className="flex items-center gap-4 cursor-pointer group">
+                    <div className={`ielts-radio-circle ${answers[q.id] === opt ? 'selected' : ''}`}>
+                      {answers[q.id] === opt && <div className="ielts-radio-dot" />}
+                    </div>
+                    <span className={`text-sm font-medium ${answers[q.id] === opt ? 'text-slate-900' : 'text-slate-600'}`}>
+                      {opt}
+                    </span>
+                    <input 
+                      type="radio" 
+                      name={q.id} 
+                      value={opt}
+                      checked={answers[q.id] === opt}
+                      onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                      className="hidden"
+                    />
+                  </label>
+                ))}
               </div>
             </div>
           </div>
@@ -359,28 +321,22 @@ export default function App() {
       case 'form':
       case 'sentence':
         return (
-          <div key={q.id} className="mb-8 group">
-            <div className="flex gap-4 items-start">
-              <div className={`w-8 h-8 rounded border-2 flex items-center justify-center font-bold text-sm shrink-0 transition-colors ${isAnswered ? 'bg-slate-100 border-slate-300 text-slate-600' : 'border-ielts-blue text-ielts-blue'}`}>
-                {q.id}
-              </div>
-              <div className="flex-1">
-                <p className="font-medium mb-3 text-slate-800">
-                  {q.question.split('[___]').map((part, i, arr) => (
-                    <React.Fragment key={i}>
-                      {part}
-                      {i < arr.length - 1 && (
-                        <input 
-                          type="text"
-                          value={answers[q.id] || ''}
-                          onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                          className="mx-2 px-2 py-1 border-b-2 border-slate-300 focus:border-ielts-blue outline-none transition-colors w-32 text-center font-bold text-ielts-blue"
-                        />
-                      )}
-                    </React.Fragment>
-                  ))}
-                </p>
-              </div>
+          <div key={q.id} className="mb-4 flex items-start gap-4">
+            <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-700 shrink-0">{q.id}</div>
+            <div className="flex-1 text-sm text-slate-800 pt-1.5">
+              {q.question.split('[___]').map((part, i, arr) => (
+                <React.Fragment key={i}>
+                  {part}
+                  {i < arr.length - 1 && (
+                    <input 
+                      type="text"
+                      value={answers[q.id] || ''}
+                      onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                      className="ielts-input mx-1 w-40"
+                    />
+                  )}
+                </React.Fragment>
+              ))}
             </div>
           </div>
         );
@@ -401,9 +357,11 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <header className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center sticky top-0 z-50">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-ielts-blue rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-sm">I</div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight">IELTS Mock Master BLC</h1>
+          <div className="flex items-center gap-3">
+            <div className="ielts-logo-box px-2 py-1.5 text-xl">IELTS</div>
+            <div className="h-6 w-px bg-slate-200" />
+            <img src="https://raw.githubusercontent.com/Cortex-AI/assets/main/blc-logo.jpg" alt="BLC Logo" className="h-10" />
+            <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Mock Master</span>
           </div>
           <div className="flex items-center gap-6">
             {user ? (
@@ -465,7 +423,10 @@ export default function App() {
                   </div>
                   
                   <div className="relative z-10">
-                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-ielts-blue font-black text-2xl mb-8 shadow-lg">I</div>
+                    <div className="flex items-center gap-4 mb-8">
+                      <div className="ielts-logo-box px-3 py-1 text-2xl shadow-lg">IELTS</div>
+                      <img src="https://raw.githubusercontent.com/Cortex-AI/assets/main/blc-logo.jpg" alt="BLC Logo" className="h-12 brightness-0 invert" />
+                    </div>
                     <h3 className="text-4xl font-black mb-4 leading-tight">Master Your IELTS Journey</h3>
                     <p className="text-blue-100 text-lg font-medium opacity-80">Join thousands of candidates achieving their dream scores with our authentic simulation platform.</p>
                   </div>
@@ -568,7 +529,7 @@ export default function App() {
                     </button>
 
                     <p className="text-center mt-10 text-sm font-medium text-slate-500">
-                      {authMode === 'login' ? "New to IELTS Mock Master?" : "Already have an account?"}
+                      {authMode === 'login' ? "New to IELTS BLC?" : "Already have an account?"}
                       <button 
                         onClick={() => {
                           setAuthMode(authMode === 'login' ? 'signup' : 'login');
@@ -731,46 +692,62 @@ export default function App() {
     const module = MOCK_TEST_DATA[activeModule!];
     const section = module.sections[currentSectionIndex];
 
+    // Calculate total questions across all sections
+    let totalQuestionsCount = 0;
+    module.sections.forEach(s => totalQuestionsCount += s.questions.length);
+
+    // Get all questions in a flat array for navigation
+    const allQuestions: Question[] = [];
+    module.sections.forEach(s => allQuestions.push(...s.questions));
+
     return (
-      <div className="h-screen flex flex-col bg-white overflow-hidden">
-        {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 px-8 flex justify-between items-center z-50">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-ielts-blue rounded flex items-center justify-center text-white font-bold">I</div>
-              <h2 className="font-bold text-slate-800 tracking-tight">{module.title}</h2>
-            </div>
-            <div className="h-4 w-px bg-slate-200" />
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-              {section.title}
-            </div>
+      <div className="h-screen flex flex-col bg-white overflow-hidden select-none">
+        {/* Real IELTS Header */}
+        <header className="ielts-test-header">
+          <div className="flex items-center gap-4">
+            <div className="ielts-logo-box px-2 py-0.5 text-base">IELTS</div>
+            <div className="text-xs font-bold text-slate-800">Test taker ID: <span className="font-medium text-slate-600">{user?.email || 'user@gmail.com'}</span></div>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="text-right hidden md:block">
-              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Candidate</div>
-              <div className="text-xs text-slate-700 font-semibold">{user?.displayName || user?.email}</div>
-            </div>
+          
+          <div className="absolute left-1/2 -translate-x-1/2">
             <Timer duration={module.duration} onTimeUp={submitTest} />
+          </div>
+
+          <div className="flex items-center gap-4">
+            {activeModule === 'listening' && (
+              <div className="flex items-center gap-2 mr-2">
+                <Volume2 size={18} className="text-slate-600" />
+                <div className="w-20 h-1 bg-slate-200 rounded-full relative">
+                  <div className="absolute left-0 top-0 h-full w-2/3 bg-ielts-blue rounded-full" />
+                  <div className="absolute left-2/3 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-white border border-slate-400 rounded-full shadow-sm" />
+                </div>
+              </div>
+            )}
+            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors">
+              <Menu size={20} className="text-slate-700" />
+            </button>
             <button 
               onClick={submitTest}
-              className="bg-slate-900 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 transition-all shadow-sm"
+              className="ielts-btn-submit"
             >
-              Finish Test
+              Submit
             </button>
           </div>
         </header>
 
+        {/* Real IELTS Subheader */}
+        <div className="ielts-test-subheader">
+          <div className="font-bold text-slate-800 text-lg">{section.title}</div>
+          <div className="text-slate-700 text-sm">{section.instruction}</div>
+        </div>
+
         {/* Test Area */}
         <main className="flex-1 flex overflow-hidden relative">
           {activeModule === 'listening' && (
-            <div className="flex-1 flex flex-col pt-12">
+            <div className="flex-1 flex flex-col">
               <AudioPlayer src={section.content} />
-              <div className="flex-1 overflow-y-auto p-12 ielts-scrollbar">
-                <div className="max-w-3xl mx-auto">
-                  <div className="mb-10 p-6 bg-ielts-light-blue rounded-2xl border border-blue-100">
-                    <p className="font-bold text-ielts-blue uppercase tracking-widest text-xs mb-2">Instructions</p>
-                    <p className="text-slate-700 font-medium">{section.instruction}</p>
-                  </div>
+              <div className="flex-1 overflow-y-auto p-12 ielts-scrollbar bg-white">
+                <div className="max-w-4xl mx-auto">
                   {section.questions.map(renderQuestion)}
                 </div>
               </div>
@@ -786,7 +763,7 @@ export default function App() {
                 <div className="prose prose-slate max-w-none prose-p:leading-relaxed prose-p:text-slate-600" dangerouslySetInnerHTML={{ __html: section.content }} />
               </div>
               <div 
-                className="w-1.5 bg-slate-200 hover:bg-ielts-blue cursor-col-resize transition-colors z-10"
+                className="w-1 bg-slate-300 hover:bg-ielts-blue cursor-col-resize transition-colors z-10 flex items-center justify-center"
                 onMouseDown={(e) => {
                   const startX = e.clientX;
                   const startWidth = passageWidth;
@@ -802,53 +779,63 @@ export default function App() {
                   window.addEventListener('mousemove', onMouseMove);
                   window.addEventListener('mouseup', onMouseUp);
                 }}
-              />
+              >
+                <div className="h-8 w-px bg-slate-400" />
+              </div>
               <div 
                 className="questions-container ielts-scrollbar"
                 style={{ width: `${100 - passageWidth}%` }}
               >
-                <div className="mb-10 p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                  <p className="font-bold text-slate-400 uppercase tracking-widest text-xs mb-2">Instructions</p>
-                  <p className="text-slate-700 font-medium">{section.instruction}</p>
-                </div>
                 {section.questions.map(renderQuestion)}
               </div>
             </>
           )}
 
           {activeModule === 'writing' && (
-            <div className="flex-1 flex flex-col">
-              <div className="flex-1 flex overflow-hidden">
-                <div className="w-1/2 p-12 overflow-y-auto ielts-scrollbar border-r border-slate-100">
-                  <div className="mb-8 p-6 bg-ielts-light-blue rounded-2xl border border-blue-100">
-                    <p className="font-bold text-ielts-blue uppercase tracking-widest text-xs mb-2">Task Instructions</p>
-                    <p className="text-slate-700 font-medium">{section.instruction}</p>
-                  </div>
-                  <h3 className="font-bold text-2xl text-slate-900 mb-6">Question Prompt</h3>
-                  <p className="text-slate-600 text-lg leading-relaxed bg-slate-50 p-8 rounded-3xl border border-slate-200 italic">
-                    {section.content}
-                  </p>
-                </div>
-                <div className="w-1/2 p-12 flex flex-col gap-6 bg-slate-50">
-                  <textarea 
-                    className="flex-1 w-full p-10 bg-white border border-slate-200 rounded-[32px] shadow-inner focus:ring-4 focus:ring-blue-100 outline-none resize-none font-sans text-xl leading-relaxed text-slate-700"
-                    placeholder="Start typing your response here..."
-                    value={answers[`writing_${section.id}`] || ''}
-                    onChange={(e) => handleAnswerChange(`writing_${section.id}`, e.target.value)}
-                  />
-                  <div className="flex justify-between items-center px-6">
-                    <div className="flex items-center gap-3">
-                      <div className="px-4 py-2 bg-slate-200 rounded-full text-xs font-bold text-slate-600 uppercase tracking-widest">
-                        Words: {(answers[`writing_${section.id}`] || '').trim().split(/\s+/).filter(Boolean).length}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs uppercase tracking-widest">
-                      <Save size={14} /> Auto-saved
-                    </div>
-                  </div>
+            <>
+              <div 
+                className="passage-container ielts-scrollbar"
+                style={{ width: `${passageWidth}%` }}
+              >
+                <div className="mb-8">
+                  <p className="text-slate-700 font-medium whitespace-pre-wrap">{section.content}</p>
                 </div>
               </div>
-            </div>
+              <div 
+                className="w-1 bg-slate-300 hover:bg-ielts-blue cursor-col-resize transition-colors z-10 flex items-center justify-center"
+                onMouseDown={(e) => {
+                  const startX = e.clientX;
+                  const startWidth = passageWidth;
+                  const onMouseMove = (moveEvent: MouseEvent) => {
+                    const deltaX = moveEvent.clientX - startX;
+                    const newWidth = startWidth + (deltaX / window.innerWidth) * 100;
+                    setPassageWidth(Math.max(20, Math.min(80, newWidth)));
+                  };
+                  const onMouseUp = () => {
+                    window.removeEventListener('mousemove', onMouseMove);
+                    window.removeEventListener('mouseup', onMouseUp);
+                  };
+                  window.addEventListener('mousemove', onMouseMove);
+                  window.addEventListener('mouseup', onMouseUp);
+                }}
+              >
+                <div className="h-8 w-px bg-slate-400" />
+              </div>
+              <div 
+                className="questions-container ielts-scrollbar flex flex-col gap-4"
+                style={{ width: `${100 - passageWidth}%` }}
+              >
+                <textarea 
+                  className="flex-1 w-full p-6 bg-white border border-slate-300 rounded outline-none resize-none font-sans text-base leading-relaxed text-slate-700 shadow-sm"
+                  placeholder="Type your answer here..."
+                  value={answers[`writing_${section.id}`] || ''}
+                  onChange={(e) => handleAnswerChange(`writing_${section.id}`, e.target.value)}
+                />
+                <div className="flex justify-end items-center text-xs text-slate-500 font-medium">
+                  Words: {(answers[`writing_${section.id}`] || '').trim().split(/\s+/).filter(Boolean).length}
+                </div>
+              </div>
+            </>
           )}
 
           {activeModule === 'speaking' && (
@@ -896,61 +883,68 @@ export default function App() {
               </motion.div>
             </div>
           )}
-        </main>
 
-        {/* Footer Navigation */}
-        <footer className="h-20 bg-white border-t border-slate-200 px-8 flex justify-between items-center z-50">
-          <div className="flex items-center gap-4 h-full">
-            {module.sections.map((s, idx) => {
-              const totalQs = s.questions.length;
-              const answeredQs = s.questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== '').length;
-              
-              return (
-                <div key={idx} className="flex items-center h-full group">
-                  <button
-                    onClick={() => setCurrentSectionIndex(idx)}
-                    className={`flex flex-col justify-center px-6 h-full transition-all relative ${
-                      currentSectionIndex === idx 
-                        ? 'bg-slate-50' 
-                        : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`text-sm font-black ${currentSectionIndex === idx ? 'text-ielts-blue' : 'text-slate-400'}`}>
-                        {s.title}
-                      </span>
-                      {totalQs > 0 && (
-                        <span className="text-[10px] font-bold bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full">
-                          {answeredQs}/{totalQs}
-                        </span>
-                      )}
-                    </div>
-                    {currentSectionIndex === idx && (
-                      <motion.div 
-                        layoutId="activeTab"
-                        className="absolute top-0 left-0 right-0 h-1 bg-ielts-blue"
-                      />
-                    )}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="flex gap-4">
+          {/* Floating Navigation Arrows */}
+          <div className="absolute bottom-6 right-6 flex gap-2 z-50">
             <button 
               disabled={currentSectionIndex === 0}
               onClick={() => setCurrentSectionIndex(prev => prev - 1)}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl border-2 border-slate-100 bg-white text-slate-500 font-bold text-sm disabled:opacity-30 hover:bg-slate-50 transition-all"
+              className="ielts-nav-btn disabled:opacity-30"
             >
-              <ChevronLeft size={20} /> Previous
+              <ChevronLeft size={24} />
             </button>
             <button 
               disabled={currentSectionIndex === module.sections.length - 1}
               onClick={() => setCurrentSectionIndex(prev => prev + 1)}
-              className="flex items-center gap-2 px-8 py-3 rounded-xl bg-ielts-blue text-white font-bold text-sm disabled:opacity-30 hover:bg-blue-700 transition-all shadow-md hover:shadow-blue-100"
+              className="ielts-nav-btn disabled:opacity-30"
             >
-              Next <ChevronRight size={20} />
+              <ChevronRight size={24} />
+            </button>
+          </div>
+        </main>
+
+        {/* Real IELTS Footer */}
+        <footer className="ielts-test-footer">
+          <div className="flex items-center gap-8 h-full">
+            {module.sections.map((s, sIdx) => (
+              <div key={sIdx} className="flex items-center h-full">
+                <div className="text-[11px] font-bold text-slate-800 mr-4 whitespace-nowrap">
+                  {s.title} <span className="ml-1 text-slate-400 font-medium">{s.questions.filter(q => answers[q.id]).length}/{s.questions.length}</span>
+                </div>
+                <div className="flex items-center h-full">
+                  {s.questions.map((q) => {
+                    const isAnswered = answers[q.id] !== undefined && answers[q.id] !== '';
+                    const isCurrent = section.questions.some(sq => sq.id === q.id);
+                    
+                    return (
+                      <div 
+                        key={q.id}
+                        onClick={() => setCurrentSectionIndex(sIdx)}
+                        className={`ielts-question-nav-item ${isAnswered ? 'answered' : ''} ${isCurrent ? 'active' : ''}`}
+                      >
+                        {q.id}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button 
+              disabled={currentSectionIndex === 0}
+              onClick={() => setCurrentSectionIndex(prev => prev - 1)}
+              className="ielts-btn-nav disabled:opacity-30"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button 
+              disabled={currentSectionIndex === module.sections.length - 1}
+              onClick={() => setCurrentSectionIndex(prev => prev + 1)}
+              className="ielts-btn-nav disabled:opacity-30"
+            >
+              <ChevronRight size={20} />
             </button>
           </div>
         </footer>

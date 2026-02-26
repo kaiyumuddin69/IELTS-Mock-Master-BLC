@@ -1,5 +1,5 @@
 {
-  "name": "IELTS Mock Master BLC",
+  "name": "IELTS BLC",
   "description": "A comprehensive IELTS mock test platform featuring authentic Listening, Reading, Writing, and Speaking simulations with real-time grading and feedback.",
   "requestFramePermissions": [
     "microphone"

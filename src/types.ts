@@ -47,13 +47,30 @@ export const MOCK_TEST_DATA: Record<string, TestModule> = {
     sections: [
       {
         id: 'ls1',
-        title: 'Part 1',
-        instruction: 'Complete the notes below. Write ONE WORD AND/OR A NUMBER for each answer.',
+        title: 'Listening Part 1',
+        instruction: 'Listen to the audio and answer questions 1-40.',
         content: 'https://ia601708.us.archive.org/10/items/mix-27m-28s-audio-joiner.com-copy-copy-copy-copy-copy-copy-copy/mix_27m28s%20%28audio-joiner.com%29%20-%20CopyCopyCopyCopyCopyCopyCopy.mp3',
         questions: [
-          { id: '1', type: 'form', question: 'Company name: [___] Hotel Chains', correctAnswer: 'Central' },
-          { id: '2', type: 'form', question: 'Letters of the [___] should be bigger.', correctAnswer: 'address' },
-          { id: '3', type: 'form', question: 'The information of the [___] should be removed.', correctAnswer: 'pool' },
+          { id: '1', type: 'form', question: 'black with thin [___] stripes', correctAnswer: 'Central' },
+          { id: '2', type: 'form', question: 'a set of [___] keys', correctAnswer: 'address' },
+          { id: '3', type: 'form', question: 'a [___] in a box', correctAnswer: 'pool' },
+          { id: '4', type: 'form', question: 'a blue [___]', correctAnswer: 'pool' },
+          { id: '5', type: 'form', question: 'Date and time: 2.00-2.30 pm on [___]', correctAnswer: 'pool' },
+          { id: '6', type: 'form', question: 'Basic route: caller travelled from the [___] to Highbury', correctAnswer: 'pool' },
+          { id: '7', type: 'mcq', question: 'What is the main purpose of the call?', options: ['To report a lost item', 'To book a taxi', 'To complain about a service'], correctAnswer: 'To report a lost item' },
+          { id: '8', type: 'mcq', question: 'Where did the caller leave the item?', options: ['On the train', 'In the station cafe', 'On the platform'], correctAnswer: 'On the train' },
+          { id: '9', type: 'form', question: 'Caller\'s name: [___]', correctAnswer: 'John Smith' },
+          { id: '10', type: 'form', question: 'Phone number: [___]', correctAnswer: '0123456789' },
+        ]
+      },
+      {
+        id: 'ls2',
+        title: 'Listening Part 2',
+        instruction: 'Listen and answer questions 11-20.',
+        content: 'https://ia601708.us.archive.org/10/items/mix-27m-28s-audio-joiner.com-copy-copy-copy-copy-copy-copy-copy/mix_27m28s%20%28audio-joiner.com%29%20-%20CopyCopyCopyCopyCopyCopyCopy.mp3',
+        questions: [
+          { id: '11', type: 'mcq', question: 'The speaker says that the new park will be...', options: ['Larger than the old one', 'In the same location', 'Open 24 hours'], correctAnswer: 'Larger than the old one' },
+          { id: '12', type: 'mcq', question: 'What feature will the park include?', options: ['A swimming pool', 'A skate park', 'A library'], correctAnswer: 'A skate park' },
         ]
       }
     ]
@@ -66,16 +83,36 @@ export const MOCK_TEST_DATA: Record<string, TestModule> = {
     sections: [
       {
         id: 'rs1',
-        title: 'Part 1',
-        instruction: 'Read the text and answer questions 1-7.',
+        title: 'Reading Part 1',
+        instruction: 'Read the passage and answer questions 1-13.',
         content: `
-          <h2 class="text-2xl font-bold mb-4">The Green Revolution in China</h2>
-          <p class="mb-4">A couple of weeks ago, China's highest government body published their conclusions from the second research session on continental climate change over a period of twelve months...</p>
-          <p class="mb-4">It should be highlighted that the Chinese central government also had a similar meeting and that China is a rapidly industrializing country with new coal-fueled power plants opening every week...</p>
+          <div class="text-center mb-6">
+            <h2 class="text-2xl font-bold">Katherine Mansfield</h2>
+          </div>
+          <p class="italic text-center mb-6">Katherine Mansfield was a modernist writer of short fiction who was born and brought up in New Zealand.</p>
+          <p class="mb-4">Katherine Mansfield was a modernist writer of short fiction who was born and brought up in New Zealand. She became one of New Zealand's best-known writers, using the pen name of Katherine Mansfield. The daughter of a banker, and born into a middle-class family, she was also a first cousin of Countess Elizabeth von Arnim, a distinguished novelist in her time. Mansfield had two older sisters and a younger brother. Her father, Harold Beauchamp, went on to become the chairman of the Bank of New Zealand. In 1893, the Mansfield family moved to Karori, a suburb of Wellington, where Mansfield would spend the happiest years of her childhood; she later used her memories of this time as an inspiration for her Pretute story.</p>
+          <p class="mb-4">Her first published stories appeared in the High School Reporter and the Wellington Girls' High School magazine in 1898 and 1899. In 1902, she developed strong feelings for a musician who played the cello, Arnold Trowell, although her feelings were not, for the most part, returned. Mansfield herself was an accomplished cellist, having received lessons from Trowell's father. Mansfield wrote in her journals of felling isolated to some extent in New Zealand, and, in general terms of her interest in the Maori people (New Zealand's native people), who are often portrayed in a sympathetic light in her later stories, such as How Pearl Button Was Kidnapped. She moved to London in 1903, where she attended Queen's College, along with her two sisters. Mansfield recommended playing the cello, an occupation that she believed, during her tome at Queen's, she would take up professionally. She also began contributing to the college newspaper, with such a dedication to it that she eventually became its editor.</p>
         `,
         questions: [
-          { id: '1', type: 'tfng', question: 'The Central Government of China concluded the second research scheme of climate change is less than one year.', correctAnswer: 'YES' },
-          { id: '2', type: 'tfng', question: 'The main topic of the G8 Meeting in Japan was to discuss greenhouse gas emissions.', correctAnswer: 'NO' },
+          { id: '1', type: 'tfng', question: 'The name Katherine Mansfield, that appears on the writer\'s book, was exactly the same as her origin name.', options: ['TRUE', 'FALSE', 'NOT GIVEN'], correctAnswer: 'FALSE' },
+          { id: '2', type: 'tfng', question: 'Mansfield won a prize for a story she wrote for Maori people for the High School Reporter.', options: ['TRUE', 'FALSE', 'NOT GIVEN'], correctAnswer: 'FALSE' },
+          { id: '3', type: 'tfng', question: 'How Pearl Button Was Kidnapped portrayed Maori people in a favorable way.', options: ['TRUE', 'FALSE', 'NOT GIVEN'], correctAnswer: 'TRUE' },
+          { id: '4', type: 'tfng', question: 'Mansfield moved to London to study music.', options: ['TRUE', 'FALSE', 'NOT GIVEN'], correctAnswer: 'NOT GIVEN' },
+          { id: '5', type: 'tfng', question: 'Mansfield became the editor of the college newspaper.', options: ['TRUE', 'FALSE', 'NOT GIVEN'], correctAnswer: 'TRUE' },
+        ]
+      },
+      {
+        id: 'rs2',
+        title: 'Reading Part 2',
+        instruction: 'Read the passage and answer questions 14-26.',
+        content: `
+          <div class="text-center mb-6">
+            <h2 class="text-2xl font-bold">The History of Glass</h2>
+          </div>
+          <p class="mb-4">Glass has been used for centuries... (placeholder text)</p>
+        `,
+        questions: [
+          { id: '14', type: 'mcq', question: 'When was glass first discovered?', options: ['3000 BC', '1000 BC', '500 AD'], correctAnswer: '3000 BC' },
         ]
       }
     ]
