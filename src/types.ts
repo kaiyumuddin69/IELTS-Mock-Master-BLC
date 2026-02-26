@@ -48,29 +48,73 @@ export const MOCK_TEST_DATA: Record<string, TestModule> = {
       {
         id: 'ls1',
         title: 'Listening Part 1',
-        instruction: 'Listen to the audio and answer questions 1-40.',
+        instruction: 'Complete the form below. Write ONE WORD AND/OR A NUMBER for each answer.',
         content: 'https://ia601708.us.archive.org/10/items/mix-27m-28s-audio-joiner.com-copy-copy-copy-copy-copy-copy-copy/mix_27m28s%20%28audio-joiner.com%29%20-%20CopyCopyCopyCopyCopyCopyCopy.mp3',
         questions: [
-          { id: '1', type: 'form', question: 'black with thin [___] stripes', correctAnswer: 'Central' },
-          { id: '2', type: 'form', question: 'a set of [___] keys', correctAnswer: 'address' },
-          { id: '3', type: 'form', question: 'a [___] in a box', correctAnswer: 'pool' },
-          { id: '4', type: 'form', question: 'a blue [___]', correctAnswer: 'pool' },
-          { id: '5', type: 'form', question: 'Date and time: 2.00-2.30 pm on [___]', correctAnswer: 'pool' },
-          { id: '6', type: 'form', question: 'Basic route: caller travelled from the [___] to Highbury', correctAnswer: 'pool' },
-          { id: '7', type: 'mcq', question: 'What is the main purpose of the call?', options: ['To report a lost item', 'To book a taxi', 'To complain about a service'], correctAnswer: 'To report a lost item' },
-          { id: '8', type: 'mcq', question: 'Where did the caller leave the item?', options: ['On the train', 'In the station cafe', 'On the platform'], correctAnswer: 'On the train' },
-          { id: '9', type: 'form', question: 'Caller\'s name: [___]', correctAnswer: 'John Smith' },
-          { id: '10', type: 'form', question: 'Phone number: [___]', correctAnswer: '0123456789' },
+          { id: '1', type: 'form', question: 'Item lost: [___]', correctAnswer: 'bag' },
+          { id: '2', type: 'form', question: 'Color: black with thin [___] stripes', correctAnswer: 'Central' },
+          { id: '3', type: 'form', question: 'Contents: a set of [___] keys', correctAnswer: 'address' },
+          { id: '4', type: 'form', question: 'Journey details: Date: [___]', correctAnswer: '15th May' },
+          { id: '5', type: 'form', question: 'Time: [___] pm', correctAnswer: '2.30' },
+          { id: '6', type: 'form', question: 'Route: from the [___] to Highbury', correctAnswer: 'station' },
+          { id: '7', type: 'form', question: 'Caller\'s name: [___]', correctAnswer: 'John Smith' },
+          { id: '8', type: 'form', question: 'Phone number: [___]', correctAnswer: '0123456789' },
+          { id: '9', type: 'form', question: 'Address: [___] Road', correctAnswer: 'Green' },
+          { id: '10', type: 'form', question: 'Postcode: [___]', correctAnswer: 'NW1 4BT' },
         ]
       },
       {
         id: 'ls2',
         title: 'Listening Part 2',
-        instruction: 'Listen and answer questions 11-20.',
+        instruction: 'Choose the correct letter, A, B or C.',
         content: 'https://ia601708.us.archive.org/10/items/mix-27m-28s-audio-joiner.com-copy-copy-copy-copy-copy-copy-copy/mix_27m28s%20%28audio-joiner.com%29%20-%20CopyCopyCopyCopyCopyCopyCopy.mp3',
         questions: [
-          { id: '11', type: 'mcq', question: 'The speaker says that the new park will be...', options: ['Larger than the old one', 'In the same location', 'Open 24 hours'], correctAnswer: 'Larger than the old one' },
-          { id: '12', type: 'mcq', question: 'What feature will the park include?', options: ['A swimming pool', 'A skate park', 'A library'], correctAnswer: 'A skate park' },
+          { id: '11', type: 'mcq', question: 'The new community center will be located...', options: ['Near the library', 'In the city park', 'Opposite the station'], correctAnswer: 'In the city park' },
+          { id: '12', type: 'mcq', question: 'What is the main feature of the new building?', options: ['A large auditorium', 'A rooftop garden', 'A modern gym'], correctAnswer: 'A rooftop garden' },
+          { id: '13', type: 'mcq', question: 'The project was funded by...', options: ['The local council', 'A private donation', 'A national lottery grant'], correctAnswer: 'A private donation' },
+          { id: '14', type: 'mcq', question: 'When is the expected completion date?', options: ['August', 'October', 'December'], correctAnswer: 'October' },
+          { id: '15', type: 'mcq', question: 'What will happen to the old center?', options: ['It will be demolished', 'It will become a museum', 'It will be used for storage'], correctAnswer: 'It will become a museum' },
+          { id: '16', type: 'mcq', question: 'Visitors are encouraged to...', options: ['Cycle to the center', 'Use the new car park', 'Take the shuttle bus'], correctAnswer: 'Cycle to the center' },
+          { id: '17', type: 'mcq', question: 'The cafe will serve...', options: ['Only vegetarian food', 'Locally sourced produce', 'International cuisine'], correctAnswer: 'Locally sourced produce' },
+          { id: '18', type: 'mcq', question: 'Membership for the gym is...', options: ['Free for students', 'Discounted for seniors', 'Available on a daily basis'], correctAnswer: 'Discounted for seniors' },
+          { id: '19', type: 'mcq', question: 'The first event will be...', options: ['A photography exhibition', 'A live music concert', 'A community meeting'], correctAnswer: 'A photography exhibition' },
+          { id: '20', type: 'mcq', question: 'How can people volunteer?', options: ['By calling the office', 'By visiting the website', 'By signing up at the desk'], correctAnswer: 'By visiting the website' },
+        ]
+      },
+      {
+        id: 'ls3',
+        title: 'Listening Part 3',
+        instruction: 'What does each student say about the following aspects of their research project?',
+        content: 'https://ia601708.us.archive.org/10/items/mix-27m-28s-audio-joiner.com-copy-copy-copy-copy-copy-copy-copy/mix_27m28s%20%28audio-joiner.com%29%20-%20CopyCopyCopyCopyCopyCopyCopy.mp3',
+        questions: [
+          { id: '21', type: 'matching', question: 'Data collection methods', options: ['Needs more detail', 'Well organized', 'Too time consuming'], correctAnswer: 'Needs more detail' },
+          { id: '22', type: 'matching', question: 'Literature review', options: ['Needs more detail', 'Well organized', 'Too time consuming'], correctAnswer: 'Well organized' },
+          { id: '23', type: 'matching', question: 'Statistical analysis', options: ['Needs more detail', 'Well organized', 'Too time consuming'], correctAnswer: 'Too time consuming' },
+          { id: '24', type: 'matching', question: 'Conclusion section', options: ['Needs more detail', 'Well organized', 'Too time consuming'], correctAnswer: 'Needs more detail' },
+          { id: '25', type: 'matching', question: 'Overall presentation', options: ['Needs more detail', 'Well organized', 'Too time consuming'], correctAnswer: 'Well organized' },
+          { id: '26', type: 'mcq', question: 'What do they agree to do next?', options: ['Consult their tutor', 'Redesign the survey', 'Start the final draft'], correctAnswer: 'Consult their tutor' },
+          { id: '27', type: 'mcq', question: 'The main problem with the survey was...', options: ['The wording of questions', 'The small sample size', 'The lack of responses'], correctAnswer: 'The wording of questions' },
+          { id: '28', type: 'mcq', question: 'They decide to focus their research on...', options: ['Urban areas only', 'Rural communities', 'Both urban and rural'], correctAnswer: 'Urban areas only' },
+          { id: '29', type: 'mcq', question: 'The deadline for the project is...', options: ['Next Friday', 'In two weeks', 'End of the month'], correctAnswer: 'In two weeks' },
+          { id: '30', type: 'mcq', question: 'They will meet again on...', options: ['Monday morning', 'Tuesday afternoon', 'Wednesday evening'], correctAnswer: 'Tuesday afternoon' },
+        ]
+      },
+      {
+        id: 'ls4',
+        title: 'Listening Part 4',
+        instruction: 'Complete the notes below. Write ONE WORD ONLY for each answer.',
+        content: 'https://ia601708.us.archive.org/10/items/mix-27m-28s-audio-joiner.com-copy-copy-copy-copy-copy-copy-copy/mix_27m28s%20%28audio-joiner.com%29%20-%20CopyCopyCopyCopyCopyCopyCopy.mp3',
+        questions: [
+          { id: '31', type: 'form', question: 'Urbanization has led to a decrease in [___] for many species.', correctAnswer: 'habitat' },
+          { id: '32', type: 'form', question: 'Animals are forced to adapt to [___] environments.', correctAnswer: 'human' },
+          { id: '33', type: 'form', question: 'The presence of [___] can disrupt natural behaviors.', correctAnswer: 'noise' },
+          { id: '34', type: 'form', question: 'Some species have successfully moved into [___] areas.', correctAnswer: 'residential' },
+          { id: '35', type: 'form', question: 'The availability of [___] is a major factor in survival.', correctAnswer: 'food' },
+          { id: '36', type: 'form', question: 'Light pollution affects the [___] patterns of birds.', correctAnswer: 'migration' },
+          { id: '37', type: 'form', question: 'Urban wildlife can help control [___] populations.', correctAnswer: 'pest' },
+          { id: '38', type: 'form', question: 'Public [___] is essential for conservation efforts.', correctAnswer: 'awareness' },
+          { id: '39', type: 'form', question: 'Creating green [___] can provide safe passages.', correctAnswer: 'corridors' },
+          { id: '40', type: 'form', question: 'Future research should focus on [___] term impacts.', correctAnswer: 'long' },
         ]
       }
     ]
@@ -113,6 +157,7 @@ export const MOCK_TEST_DATA: Record<string, TestModule> = {
         `,
         questions: [
           { id: '14', type: 'mcq', question: 'When was glass first discovered?', options: ['3000 BC', '1000 BC', '500 AD'], correctAnswer: '3000 BC' },
+          { id: '15', type: 'matching', question: 'Match the period with the glass type: Ancient Egypt', options: ['Core-formed glass', 'Blown glass', 'Stained glass'], correctAnswer: 'Core-formed glass' },
         ]
       }
     ]

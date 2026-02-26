@@ -23,7 +23,8 @@ import {
   AlertTriangle,
   Edit3,
   Settings,
-  MoreVertical
+  MoreVertical,
+  GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MOCK_TEST_DATA, TestModule, Question } from './types';
@@ -53,6 +54,15 @@ import {
 
 // --- Components ---
 
+const BLCLogo = ({ className = "" }: { className?: string }) => (
+  <div className={`flex items-center gap-1.5 ${className}`}>
+    <div className="bg-ielts-red p-1 rounded-md shadow-sm flex items-center justify-center">
+      <GraduationCap className="text-white" size={20} strokeWidth={2.5} />
+    </div>
+    <span className="text-xl font-black text-ielts-red tracking-tighter">BLC</span>
+  </div>
+);
+
 const Timer = ({ duration, onTimeUp }: { duration: number; onTimeUp: () => void }) => {
   const [timeLeft, setTimeLeft] = useState(duration * 60);
 
@@ -79,6 +89,7 @@ const Timer = ({ duration, onTimeUp }: { duration: number; onTimeUp: () => void 
 const AudioPlayer = ({ src, onEnded }: { src: string; onEnded?: () => void }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -87,15 +98,44 @@ const AudioPlayer = ({ src, onEnded }: { src: string; onEnded?: () => void }) =>
     }
   }, [src]);
 
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      const p = (audioRef.current.currentTime / audioRef.current.duration) * 100;
+      setProgress(p);
+    }
+  };
+
   return (
-    <audio 
-      ref={audioRef} 
-      src={src} 
-      onEnded={() => {
-        setIsPlaying(false);
-        onEnded?.();
-      }}
-    />
+    <div className="bg-slate-50 border-b border-slate-200 px-8 py-3 flex items-center gap-4 sticky top-0 z-30 shadow-sm">
+      <button 
+        onClick={() => {
+          if (audioRef.current) {
+            if (isPlaying) audioRef.current.pause();
+            else audioRef.current.play();
+            setIsPlaying(!isPlaying);
+          }
+        }}
+        className="w-10 h-10 flex items-center justify-center bg-ielts-blue text-white rounded-full hover:bg-blue-700 transition-all shadow-md"
+      >
+        {isPlaying ? <X size={20} /> : <Play size={20} className="ml-0.5" />}
+      </button>
+      <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden relative">
+        <div 
+          className="absolute left-0 top-0 h-full bg-ielts-blue transition-all duration-300" 
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Audio Playing</div>
+      <audio 
+        ref={audioRef} 
+        src={src} 
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={() => {
+          setIsPlaying(false);
+          onEnded?.();
+        }}
+      />
+    </div>
   );
 };
 
@@ -291,17 +331,17 @@ export default function App() {
         const opts = q.options || (q.type === 'tfng' ? ['TRUE', 'FALSE', 'NOT GIVEN'] : []);
         
         return (
-          <div key={q.id} className="mb-8 flex items-start gap-4">
-            <div className="w-8 h-8 flex items-center justify-center text-sm font-bold text-slate-800 shrink-0">{q.id}</div>
+          <div key={q.id} id={`question-${q.id}`} className="mb-10 flex items-start gap-8 scroll-mt-24 group">
+            <div className="w-8 h-8 flex items-center justify-center text-sm font-black bg-slate-100 text-slate-800 rounded-lg shrink-0 mt-0.5 group-hover:bg-ielts-blue group-hover:text-white transition-all">{q.id}</div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-slate-900 mb-4 leading-relaxed">{q.question}</p>
-              <div className="flex flex-col gap-3">
+              <p className="text-[16px] font-bold text-slate-900 mb-6 leading-relaxed">{q.question}</p>
+              <div className="grid grid-cols-1 gap-3">
                 {opts.map((opt, i) => (
-                  <label key={opt} className="flex items-center gap-4 cursor-pointer group">
-                    <div className={`ielts-radio-circle ${answers[q.id] === opt ? 'selected' : ''}`}>
-                      {answers[q.id] === opt && <div className="ielts-radio-dot" />}
+                  <label key={opt} className={`flex items-center gap-4 cursor-pointer p-4 rounded-xl border-2 transition-all ${answers[q.id] === opt ? 'border-ielts-blue bg-blue-50/50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200'}`}>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${answers[q.id] === opt ? 'border-ielts-blue' : 'border-slate-300'}`}>
+                      {answers[q.id] === opt && <div className="w-2.5 h-2.5 bg-ielts-blue rounded-full" />}
                     </div>
-                    <span className={`text-sm font-medium ${answers[q.id] === opt ? 'text-slate-900' : 'text-slate-600'}`}>
+                    <span className={`text-[15px] font-bold ${answers[q.id] === opt ? 'text-ielts-blue' : 'text-slate-600'}`}>
                       {opt}
                     </span>
                     <input 
@@ -321,22 +361,49 @@ export default function App() {
       case 'form':
       case 'sentence':
         return (
-          <div key={q.id} className="mb-4 flex items-start gap-4">
-            <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-700 shrink-0">{q.id}</div>
-            <div className="flex-1 text-sm text-slate-800 pt-1.5">
+          <div key={q.id} id={`question-${q.id}`} className="mb-8 flex items-start gap-8 scroll-mt-24 group">
+            <div className="w-8 h-8 flex items-center justify-center text-sm font-black bg-slate-100 text-slate-800 rounded-lg shrink-0 mt-0.5 group-hover:bg-ielts-blue group-hover:text-white transition-all">{q.id}</div>
+            <div className="flex-1 text-[16px] text-slate-900 font-bold flex items-center flex-wrap gap-x-3 leading-loose">
               {q.question.split('[___]').map((part, i, arr) => (
                 <React.Fragment key={i}>
-                  {part}
+                  <span>{part}</span>
                   {i < arr.length - 1 && (
                     <input 
                       type="text"
                       value={answers[q.id] || ''}
                       onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                      className="ielts-input mx-1 w-40"
+                      className="ielts-input w-56 h-10 text-center"
+                      placeholder="..."
                     />
                   )}
                 </React.Fragment>
               ))}
+            </div>
+          </div>
+        );
+      case 'matching':
+        return (
+          <div key={q.id} id={`question-${q.id}`} className="mb-8 flex items-start gap-6 scroll-mt-20 group">
+            <div className="w-6 h-6 flex items-center justify-center text-sm font-bold text-slate-800 shrink-0 mt-1.5">{q.id}</div>
+            <div className="flex-1 bg-slate-50 p-6 rounded-xl border border-slate-200 group-hover:border-ielts-blue transition-colors">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <p className="text-[15px] font-bold text-slate-900 leading-relaxed">{q.question}</p>
+                <div className="relative min-w-[240px]">
+                  <select 
+                    value={answers[q.id] || ''}
+                    onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                    className="w-full h-11 pl-4 pr-10 bg-white border-2 border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-ielts-blue appearance-none transition-all cursor-pointer"
+                  >
+                    <option value="">Select an option...</option>
+                    {q.options?.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                    <ChevronRight size={18} className="rotate-90" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -360,7 +427,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             <div className="ielts-logo-box px-2 py-1.5 text-xl">IELTS</div>
             <div className="h-6 w-px bg-slate-200" />
-            <img src="https://raw.githubusercontent.com/Cortex-AI/assets/main/blc-logo.jpg" alt="BLC Logo" className="h-10" />
+            <BLCLogo />
             <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Mock Master</span>
           </div>
           <div className="flex items-center gap-6">
@@ -425,7 +492,7 @@ export default function App() {
                   <div className="relative z-10">
                     <div className="flex items-center gap-4 mb-8">
                       <div className="ielts-logo-box px-3 py-1 text-2xl shadow-lg">IELTS</div>
-                      <img src="https://raw.githubusercontent.com/Cortex-AI/assets/main/blc-logo.jpg" alt="BLC Logo" className="h-12 brightness-0 invert" />
+                      <BLCLogo className="brightness-0 invert" />
                     </div>
                     <h3 className="text-4xl font-black mb-4 leading-tight">Master Your IELTS Journey</h3>
                     <p className="text-blue-100 text-lg font-medium opacity-80">Join thousands of candidates achieving their dream scores with our authentic simulation platform.</p>
@@ -703,32 +770,35 @@ export default function App() {
     return (
       <div className="h-screen flex flex-col bg-white overflow-hidden select-none">
         {/* Real IELTS Header */}
-        <header className="ielts-test-header">
-          <div className="flex items-center gap-4">
-            <div className="ielts-logo-box px-2 py-0.5 text-base">IELTS</div>
-            <div className="text-xs font-bold text-slate-800">Test taker ID: <span className="font-medium text-slate-600">{user?.email || 'user@gmail.com'}</span></div>
+        <header className="ielts-test-header !h-16 border-b-2 border-slate-200">
+          <div className="flex items-center gap-6">
+            <div className="ielts-logo-box px-3 py-1 text-lg rounded-md">IELTS</div>
+            <BLCLogo />
+            <div className="h-8 w-px bg-slate-200" />
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Test taker ID: <span className="text-slate-900 ml-1">{user?.email || 'user@gmail.com'}</span>
+            </div>
           </div>
           
-          <div className="absolute left-1/2 -translate-x-1/2">
+          <div className="absolute left-1/2 -translate-x-1/2 bg-slate-50 px-6 py-1.5 rounded-full border border-slate-200 shadow-sm">
             <Timer duration={module.duration} onTimeUp={submitTest} />
           </div>
 
           <div className="flex items-center gap-4">
             {activeModule === 'listening' && (
-              <div className="flex items-center gap-2 mr-2">
+              <div className="flex items-center gap-3 mr-4 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
                 <Volume2 size={18} className="text-slate-600" />
-                <div className="w-20 h-1 bg-slate-200 rounded-full relative">
+                <div className="w-24 h-1.5 bg-slate-200 rounded-full relative overflow-hidden">
                   <div className="absolute left-0 top-0 h-full w-2/3 bg-ielts-blue rounded-full" />
-                  <div className="absolute left-2/3 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-white border border-slate-400 rounded-full shadow-sm" />
                 </div>
               </div>
             )}
-            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors">
-              <Menu size={20} className="text-slate-700" />
+            <button className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200">
+              <Menu size={22} className="text-slate-700" />
             </button>
             <button 
               onClick={submitTest}
-              className="ielts-btn-submit"
+              className="bg-ielts-blue text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-md active:scale-95"
             >
               Submit
             </button>
@@ -736,18 +806,24 @@ export default function App() {
         </header>
 
         {/* Real IELTS Subheader */}
-        <div className="ielts-test-subheader">
-          <div className="font-bold text-slate-800 text-lg">{section.title}</div>
-          <div className="text-slate-700 text-sm">{section.instruction}</div>
+        <div className="bg-slate-100 border-b border-slate-300 py-6">
+          <div className="max-w-7xl mx-auto w-full px-8">
+            <div className="flex items-baseline gap-4 mb-2">
+              <div className="text-ielts-blue font-black text-2xl uppercase tracking-tight">{section.title}</div>
+              <div className="h-4 w-px bg-slate-300" />
+              <div className="text-slate-500 font-bold text-sm uppercase tracking-widest">Questions {section.questions[0].id} - {section.questions[section.questions.length - 1].id}</div>
+            </div>
+            <div className="text-slate-700 text-[15px] font-medium leading-relaxed max-w-4xl">{section.instruction}</div>
+          </div>
         </div>
 
         {/* Test Area */}
         <main className="flex-1 flex overflow-hidden relative">
           {activeModule === 'listening' && (
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col relative">
               <AudioPlayer src={section.content} />
-              <div className="flex-1 overflow-y-auto p-12 ielts-scrollbar bg-white">
-                <div className="max-w-4xl mx-auto">
+              <div className="flex-1 overflow-y-auto ielts-scrollbar bg-white">
+                <div className="max-w-4xl mx-auto px-12 py-12">
                   {section.questions.map(renderQuestion)}
                 </div>
               </div>
@@ -783,10 +859,15 @@ export default function App() {
                 <div className="h-8 w-px bg-slate-400" />
               </div>
               <div 
-                className="questions-container ielts-scrollbar"
+                className="questions-container ielts-scrollbar !p-0"
                 style={{ width: `${100 - passageWidth}%` }}
               >
-                {section.questions.map(renderQuestion)}
+                <div className="sticky top-0 bg-slate-50 border-b border-slate-200 px-8 py-3 z-20">
+                  <h3 className="text-sm font-bold text-slate-800">Questions {section.questions[0].id} - {section.questions[section.questions.length - 1].id}</h3>
+                </div>
+                <div className="p-8">
+                  {section.questions.map(renderQuestion)}
+                </div>
               </div>
             </>
           )}
@@ -904,48 +985,72 @@ export default function App() {
         </main>
 
         {/* Real IELTS Footer */}
-        <footer className="ielts-test-footer">
-          <div className="flex items-center gap-8 h-full">
-            {module.sections.map((s, sIdx) => (
-              <div key={sIdx} className="flex items-center h-full">
-                <div className="text-[11px] font-bold text-slate-800 mr-4 whitespace-nowrap">
-                  {s.title} <span className="ml-1 text-slate-400 font-medium">{s.questions.filter(q => answers[q.id]).length}/{s.questions.length}</span>
-                </div>
-                <div className="flex items-center h-full">
-                  {s.questions.map((q) => {
-                    const isAnswered = answers[q.id] !== undefined && answers[q.id] !== '';
-                    const isCurrent = section.questions.some(sq => sq.id === q.id);
-                    
-                    return (
-                      <div 
-                        key={q.id}
-                        onClick={() => setCurrentSectionIndex(sIdx)}
-                        className={`ielts-question-nav-item ${isAnswered ? 'answered' : ''} ${isCurrent ? 'active' : ''}`}
-                      >
-                        {q.id}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+        <footer className="h-24 bg-white border-t-2 border-slate-200 flex flex-col">
+          <div className="flex border-b border-slate-100 h-10 overflow-x-auto ielts-scrollbar">
+            {module.sections.map((s, sIdx) => {
+              const answeredCount = s.questions.filter(q => answers[q.id]).length;
+              const isCurrent = currentSectionIndex === sIdx;
+              return (
+                <button 
+                  key={sIdx}
+                  onClick={() => setCurrentSectionIndex(sIdx)}
+                  className={`px-8 h-full text-[11px] font-black uppercase tracking-widest flex items-center gap-3 border-r border-slate-100 transition-all whitespace-nowrap ${isCurrent ? 'bg-ielts-blue text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}
+                >
+                  {s.title}
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] ${isCurrent ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                    {answeredCount}/{s.questions.length}
+                  </span>
+                </button>
+              );
+            })}
           </div>
+          <div className="flex-1 flex items-center justify-between px-6">
+            <div className="flex items-center gap-1 overflow-x-auto ielts-scrollbar py-2">
+              {allQuestions.map((q) => {
+                const isAnswered = answers[q.id] !== undefined && answers[q.id] !== '';
+                const isCurrentSection = section.questions.some(sq => sq.id === q.id);
+                
+                return (
+                  <button 
+                    key={q.id}
+                    onClick={() => {
+                      const sIdx = module.sections.findIndex(s => s.questions.some(sq => sq.id === q.id));
+                      setCurrentSectionIndex(sIdx);
+                      setTimeout(() => {
+                        const el = document.getElementById(`question-${q.id}`);
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }, 100);
+                    }}
+                    className={`w-9 h-9 flex items-center justify-center text-[11px] font-bold rounded-md transition-all border-2 ${
+                      isAnswered 
+                        ? 'bg-slate-800 border-slate-800 text-white' 
+                        : isCurrentSection 
+                          ? 'border-ielts-blue text-ielts-blue bg-blue-50' 
+                          : 'border-slate-200 text-slate-400 hover:border-slate-300'
+                    }`}
+                  >
+                    {q.id}
+                  </button>
+                );
+              })}
+            </div>
 
-          <div className="flex items-center gap-2">
-            <button 
-              disabled={currentSectionIndex === 0}
-              onClick={() => setCurrentSectionIndex(prev => prev - 1)}
-              className="ielts-btn-nav disabled:opacity-30"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <button 
-              disabled={currentSectionIndex === module.sections.length - 1}
-              onClick={() => setCurrentSectionIndex(prev => prev + 1)}
-              className="ielts-btn-nav disabled:opacity-30"
-            >
-              <ChevronRight size={20} />
-            </button>
+            <div className="flex items-center gap-3 pl-6 border-l border-slate-200">
+              <button 
+                disabled={currentSectionIndex === 0}
+                onClick={() => setCurrentSectionIndex(prev => prev - 1)}
+                className="w-10 h-10 flex items-center justify-center rounded-xl border-2 border-slate-200 text-slate-400 hover:border-ielts-blue hover:text-ielts-blue disabled:opacity-30 disabled:hover:border-slate-200 disabled:hover:text-slate-400 transition-all"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <button 
+                disabled={currentSectionIndex === module.sections.length - 1}
+                onClick={() => setCurrentSectionIndex(prev => prev + 1)}
+                className="w-10 h-10 flex items-center justify-center rounded-xl border-2 border-slate-200 text-slate-400 hover:border-ielts-blue hover:text-ielts-blue disabled:opacity-30 disabled:hover:border-slate-200 disabled:hover:text-slate-400 transition-all"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
           </div>
         </footer>
 
