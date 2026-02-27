@@ -2,6 +2,7 @@ import { Type } from "@google/genai";
 
 export type QuestionType = 
   | 'mcq' 
+  | 'multi-mcq'
   | 'form' 
   | 'note' 
   | 'matching' 
@@ -10,7 +11,8 @@ export type QuestionType =
   | 'tfng' 
   | 'heading' 
   | 'summary' 
-  | 'table';
+  | 'table'
+  | 'flow-chart';
 
 export interface Question {
   id: string;
@@ -20,6 +22,8 @@ export interface Question {
   correctAnswer: string | string[];
   placeholder?: string;
   group?: string; // For grouping questions like 1-5
+  imageUrl?: string; // For map labelling
+  labels?: { id: string; x: number; y: number }[]; // For map/flow-chart positions
 }
 
 export interface Section {
@@ -41,80 +45,96 @@ export interface TestModule {
 export const MOCK_TEST_DATA: Record<string, TestModule> = {
   listening: {
     id: 'l1',
-    title: 'Listening Practice Test 1',
+    title: 'IELTS Listening Practice Test',
     type: 'listening',
     duration: 30,
     sections: [
       {
         id: 'ls1',
-        title: 'Listening Part 1',
+        title: 'Part 1',
         instruction: 'Complete the form below. Write ONE WORD AND/OR A NUMBER for each answer.',
         content: 'https://ia601708.us.archive.org/10/items/mix-27m-28s-audio-joiner.com-copy-copy-copy-copy-copy-copy-copy/mix_27m28s%20%28audio-joiner.com%29%20-%20CopyCopyCopyCopyCopyCopyCopy.mp3',
         questions: [
-          { id: '1', type: 'form', question: 'Item lost: [___]', correctAnswer: 'bag' },
-          { id: '2', type: 'form', question: 'Color: black with thin [___] stripes', correctAnswer: 'Central' },
-          { id: '3', type: 'form', question: 'Contents: a set of [___] keys', correctAnswer: 'address' },
-          { id: '4', type: 'form', question: 'Journey details: Date: [___]', correctAnswer: '15th May' },
-          { id: '5', type: 'form', question: 'Time: [___] pm', correctAnswer: '2.30' },
-          { id: '6', type: 'form', question: 'Route: from the [___] to Highbury', correctAnswer: 'station' },
-          { id: '7', type: 'form', question: 'Caller\'s name: [___]', correctAnswer: 'John Smith' },
-          { id: '8', type: 'form', question: 'Phone number: [___]', correctAnswer: '0123456789' },
-          { id: '9', type: 'form', question: 'Address: [___] Road', correctAnswer: 'Green' },
-          { id: '10', type: 'form', question: 'Postcode: [___]', correctAnswer: 'NW1 4BT' },
+          { id: '1', type: 'form', question: 'Customer Name: [___]', correctAnswer: 'Sarah Brown' },
+          { id: '2', type: 'form', question: 'Destination: [___]', correctAnswer: 'Sydney' },
+          { id: '3', type: 'form', question: 'Box size: [___] kg', correctAnswer: '20' },
+          { id: '4', type: 'form', question: 'Contents: [___] and books', correctAnswer: 'clothes' },
+          { id: '5', type: 'form', question: 'Pick-up date: [___] June', correctAnswer: '14th' },
+          { id: '6', type: 'form', question: 'Dining table shape: [___]', correctAnswer: 'round' },
+          { id: '7', type: 'form', question: 'Age of table: [___] years', correctAnswer: '5' },
+          { id: '8', type: 'form', question: 'Chair material: [___]', correctAnswer: 'leather' },
+          { id: '9', type: 'form', question: 'Condition: [___]', correctAnswer: 'excellent' },
+          { id: '10', type: 'form', question: 'Price: £[___]', correctAnswer: '45' },
         ]
       },
       {
         id: 'ls2',
-        title: 'Listening Part 2',
-        instruction: 'Choose the correct letter, A, B or C.',
+        title: 'Part 2',
+        instruction: 'Answer the questions below.',
         content: 'https://ia601708.us.archive.org/10/items/mix-27m-28s-audio-joiner.com-copy-copy-copy-copy-copy-copy-copy/mix_27m28s%20%28audio-joiner.com%29%20-%20CopyCopyCopyCopyCopyCopyCopy.mp3',
         questions: [
-          { id: '11', type: 'mcq', question: 'The new community center will be located...', options: ['Near the library', 'In the city park', 'Opposite the station'], correctAnswer: 'In the city park' },
-          { id: '12', type: 'mcq', question: 'What is the main feature of the new building?', options: ['A large auditorium', 'A rooftop garden', 'A modern gym'], correctAnswer: 'A rooftop garden' },
-          { id: '13', type: 'mcq', question: 'The project was funded by...', options: ['The local council', 'A private donation', 'A national lottery grant'], correctAnswer: 'A private donation' },
-          { id: '14', type: 'mcq', question: 'When is the expected completion date?', options: ['August', 'October', 'December'], correctAnswer: 'October' },
-          { id: '15', type: 'mcq', question: 'What will happen to the old center?', options: ['It will be demolished', 'It will become a museum', 'It will be used for storage'], correctAnswer: 'It will become a museum' },
-          { id: '16', type: 'mcq', question: 'Visitors are encouraged to...', options: ['Cycle to the center', 'Use the new car park', 'Take the shuttle bus'], correctAnswer: 'Cycle to the center' },
-          { id: '17', type: 'mcq', question: 'The cafe will serve...', options: ['Only vegetarian food', 'Locally sourced produce', 'International cuisine'], correctAnswer: 'Locally sourced produce' },
-          { id: '18', type: 'mcq', question: 'Membership for the gym is...', options: ['Free for students', 'Discounted for seniors', 'Available on a daily basis'], correctAnswer: 'Discounted for seniors' },
-          { id: '19', type: 'mcq', question: 'The first event will be...', options: ['A photography exhibition', 'A live music concert', 'A community meeting'], correctAnswer: 'A photography exhibition' },
-          { id: '20', type: 'mcq', question: 'How can people volunteer?', options: ['By calling the office', 'By visiting the website', 'By signing up at the desk'], correctAnswer: 'By visiting the website' },
+          { id: '11', type: 'multi-mcq', question: 'Which TWO facilities are available in the library?', options: ['Quiet study area', 'Coffee shop', 'Computer lab', 'Music room', 'Art gallery'], correctAnswer: ['Quiet study area', 'Computer lab'] },
+          { id: '12', type: 'multi-mcq', question: 'Which TWO items can be borrowed for more than a week?', options: ['New novels', 'Reference books', 'DVDs', 'Magazines', 'Textbooks'], correctAnswer: ['New novels', 'Textbooks'] },
+          { 
+            id: '13', 
+            type: 'map', 
+            question: 'Label the map of the town.', 
+            imageUrl: 'https://picsum.photos/seed/map/600/400',
+            options: ['Library', 'Post Office', 'Bank', 'Museum', 'Park'],
+            labels: [
+              { id: '16', x: 20, y: 30 },
+              { id: '17', x: 50, y: 10 },
+              { id: '18', x: 80, y: 40 },
+              { id: '19', x: 30, y: 70 },
+              { id: '20', x: 70, y: 80 },
+            ],
+            correctAnswer: ['Library', 'Bank', 'Park', 'Museum', 'Post Office']
+          },
         ]
       },
       {
         id: 'ls3',
-        title: 'Listening Part 3',
-        instruction: 'What does each student say about the following aspects of their research project?',
+        title: 'Part 3',
+        instruction: 'Answer the questions below.',
         content: 'https://ia601708.us.archive.org/10/items/mix-27m-28s-audio-joiner.com-copy-copy-copy-copy-copy-copy-copy/mix_27m28s%20%28audio-joiner.com%29%20-%20CopyCopyCopyCopyCopyCopyCopy.mp3',
         questions: [
-          { id: '21', type: 'matching', question: 'Data collection methods', options: ['Needs more detail', 'Well organized', 'Too time consuming'], correctAnswer: 'Needs more detail' },
-          { id: '22', type: 'matching', question: 'Literature review', options: ['Needs more detail', 'Well organized', 'Too time consuming'], correctAnswer: 'Well organized' },
-          { id: '23', type: 'matching', question: 'Statistical analysis', options: ['Needs more detail', 'Well organized', 'Too time consuming'], correctAnswer: 'Too time consuming' },
-          { id: '24', type: 'matching', question: 'Conclusion section', options: ['Needs more detail', 'Well organized', 'Too time consuming'], correctAnswer: 'Needs more detail' },
-          { id: '25', type: 'matching', question: 'Overall presentation', options: ['Needs more detail', 'Well organized', 'Too time consuming'], correctAnswer: 'Well organized' },
-          { id: '26', type: 'mcq', question: 'What do they agree to do next?', options: ['Consult their tutor', 'Redesign the survey', 'Start the final draft'], correctAnswer: 'Consult their tutor' },
-          { id: '27', type: 'mcq', question: 'The main problem with the survey was...', options: ['The wording of questions', 'The small sample size', 'The lack of responses'], correctAnswer: 'The wording of questions' },
-          { id: '28', type: 'mcq', question: 'They decide to focus their research on...', options: ['Urban areas only', 'Rural communities', 'Both urban and rural'], correctAnswer: 'Urban areas only' },
-          { id: '29', type: 'mcq', question: 'The deadline for the project is...', options: ['Next Friday', 'In two weeks', 'End of the month'], correctAnswer: 'In two weeks' },
-          { id: '30', type: 'mcq', question: 'They will meet again on...', options: ['Monday morning', 'Tuesday afternoon', 'Wednesday evening'], correctAnswer: 'Tuesday afternoon' },
+          { id: '21', type: 'mcq', question: 'Judy decided to research...', options: ['Local history', 'Marine biology', 'Urban planning'], correctAnswer: 'Marine biology' },
+          { id: '22', type: 'matching', question: 'Match the staff member with their responsibility:', options: ['Finance', 'Food', 'Health', 'Safety'], correctAnswer: 'Health' },
+          { id: '23', type: 'matching', question: 'Alison Jones', options: ['Finance', 'Food', 'Health', 'Safety'], correctAnswer: 'Finance' },
+          { id: '24', type: 'matching', question: 'Tim Smith', options: ['Finance', 'Food', 'Health', 'Safety'], correctAnswer: 'Food' },
+          { id: '25', type: 'matching', question: 'Jenny James', options: ['Finance', 'Food', 'Health', 'Safety'], correctAnswer: 'Safety' },
+          { id: '26', type: 'sentence', question: 'Studying with the Open University requires good [___] skills.', correctAnswer: 'organizational' },
+          { id: '27', type: 'sentence', question: 'Students must complete [___] assignments per term.', correctAnswer: 'three' },
+          { 
+            id: '28', 
+            type: 'flow-chart', 
+            question: 'Procedure for detecting life on another planet', 
+            options: ['Contamination', 'Vehicle', 'Heat', 'Results', 'Radiation'],
+            labels: [
+              { id: '28', x: 50, y: 20 },
+              { id: '29', x: 50, y: 50 },
+              { id: '30', x: 50, y: 80 },
+            ],
+            correctAnswer: ['Vehicle', 'Heat', 'Results']
+          },
         ]
       },
       {
         id: 'ls4',
-        title: 'Listening Part 4',
-        instruction: 'Complete the notes below. Write ONE WORD ONLY for each answer.',
+        title: 'Part 4',
+        instruction: 'Complete the table and notes below.',
         content: 'https://ia601708.us.archive.org/10/items/mix-27m-28s-audio-joiner.com-copy-copy-copy-copy-copy-copy-copy/mix_27m28s%20%28audio-joiner.com%29%20-%20CopyCopyCopyCopyCopyCopyCopy.mp3',
         questions: [
-          { id: '31', type: 'form', question: 'Urbanization has led to a decrease in [___] for many species.', correctAnswer: 'habitat' },
-          { id: '32', type: 'form', question: 'Animals are forced to adapt to [___] environments.', correctAnswer: 'human' },
-          { id: '33', type: 'form', question: 'The presence of [___] can disrupt natural behaviors.', correctAnswer: 'noise' },
-          { id: '34', type: 'form', question: 'Some species have successfully moved into [___] areas.', correctAnswer: 'residential' },
-          { id: '35', type: 'form', question: 'The availability of [___] is a major factor in survival.', correctAnswer: 'food' },
-          { id: '36', type: 'form', question: 'Light pollution affects the [___] patterns of birds.', correctAnswer: 'migration' },
-          { id: '37', type: 'form', question: 'Urban wildlife can help control [___] populations.', correctAnswer: 'pest' },
-          { id: '38', type: 'form', question: 'Public [___] is essential for conservation efforts.', correctAnswer: 'awareness' },
-          { id: '39', type: 'form', question: 'Creating green [___] can provide safe passages.', correctAnswer: 'corridors' },
-          { id: '40', type: 'form', question: 'Future research should focus on [___] term impacts.', correctAnswer: 'long' },
+          { id: '31', type: 'table', question: 'Learner Persistence Study: Factor - Support, Importance - [___]', correctAnswer: 'High' },
+          { id: '32', type: 'table', question: 'Factor - Motivation, Importance - [___]', correctAnswer: 'Medium' },
+          { id: '33', type: 'table', question: 'Factor - Resources, Importance - [___]', correctAnswer: 'Low' },
+          { id: '34', type: 'note', question: 'The clothing company talk: Focus on [___] materials.', correctAnswer: 'sustainable' },
+          { id: '35', type: 'note', question: 'Company started in [___].', correctAnswer: '2010' },
+          { id: '36', type: 'note', question: 'Main market is [___].', correctAnswer: 'Europe' },
+          { id: '37', type: 'note', question: 'Future plans include [___] expansion.', correctAnswer: 'global' },
+          { id: '38', type: 'form', question: 'Short Answer: What is the main goal? [___]', correctAnswer: 'Quality' },
+          { id: '39', type: 'form', question: 'Who is the CEO? [___]', correctAnswer: 'Mark Lee' },
+          { id: '40', type: 'form', question: 'Contact email: [___]', correctAnswer: 'info@clothing.com' },
         ]
       }
     ]

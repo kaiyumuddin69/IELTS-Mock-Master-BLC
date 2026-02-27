@@ -24,10 +24,14 @@ import {
   Edit3,
   Settings,
   MoreVertical,
-  GraduationCap
+  GraduationCap,
+  Check,
+  HelpCircle,
+  Wifi,
+  Bell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MOCK_TEST_DATA, TestModule, Question } from './types';
+import { MOCK_TEST_DATA, TestModule, Question, Section } from './types';
 import { auth, db } from './services/firebase';
 import { 
   signInWithPopup, 
@@ -86,6 +90,126 @@ const Timer = ({ duration, onTimeUp }: { duration: number; onTimeUp: () => void 
   );
 };
 
+const TestHeader = ({ userEmail, onFinish }: { userEmail?: string; onFinish: () => void }) => {
+  return (
+    <header className="ielts-test-header !h-14 border-b border-slate-200 px-6">
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-1">
+          <div className="bg-ielts-red text-white p-1 font-bold text-lg leading-none rounded-sm flex items-center justify-center w-8 h-8">I</div>
+          <span className="text-ielts-red font-bold text-xl tracking-tighter">IELTS</span>
+        </div>
+        <div className="h-8 w-px bg-slate-200" />
+        <BLCLogo />
+        <div className="h-8 w-px bg-slate-200" />
+        <div className="flex flex-col leading-tight">
+          <span className="text-[10px] text-slate-500 font-bold uppercase">Test taker ID</span>
+          <span className="text-xs font-bold text-slate-800">{userEmail || '24681357'}</span>
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4 text-slate-500">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
+            <Volume2 size={16} className="text-ielts-blue" />
+            <div className="w-20 h-1 bg-slate-200 rounded-full relative">
+              <div className="absolute left-0 top-0 h-full w-2/3 bg-ielts-blue rounded-full" />
+            </div>
+          </div>
+          <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            <HelpCircle size={20} />
+          </button>
+          <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            <Settings size={20} />
+          </button>
+          <button 
+            onClick={onFinish}
+            className="bg-ielts-blue text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-sm"
+          >
+            Finish
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+const TestFooter = ({ 
+  sections, 
+  currentSectionIndex, 
+  onSectionChange, 
+  answers,
+  onFinish
+}: { 
+  sections: Section[]; 
+  currentSectionIndex: number; 
+  onSectionChange: (idx: number) => void;
+  answers: Record<string, any>;
+  onFinish: () => void;
+}) => {
+  return (
+    <footer className="ielts-test-footer">
+      <div className="flex items-center gap-8 overflow-x-auto no-scrollbar flex-1">
+        {sections.map((s, sIdx) => {
+          const answeredCount = s.questions.filter(q => answers[q.id]).length;
+          const isCurrent = currentSectionIndex === sIdx;
+          return (
+            <div key={sIdx} className={`flex items-center gap-4 transition-all ${isCurrent ? 'opacity-100' : 'opacity-40'}`}>
+              <div 
+                className="flex items-center gap-2 cursor-pointer"
+                onClick={() => onSectionChange(sIdx)}
+              >
+                <span className="text-xs font-bold whitespace-nowrap">{s.title}</span>
+                <span className="text-[10px] text-slate-500">{answeredCount} of {s.questions.length}</span>
+              </div>
+              {isCurrent && (
+                <div className="flex items-center gap-1">
+                  {s.questions.map(q => (
+                    <div 
+                      key={q.id}
+                      onClick={() => {
+                        const el = document.getElementById(`question-${q.id}`);
+                        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }}
+                      className={`ielts-question-nav-item ${answers[q.id] ? 'answered' : ''}`}
+                    >
+                      {q.id}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {sIdx < sections.length - 1 && <div className="h-6 w-px bg-slate-200" />}
+            </div>
+          );
+        })}
+      </div>
+      
+      <div className="flex items-center gap-3 ml-4">
+        <div className="flex items-center border border-slate-200 rounded overflow-hidden">
+          <button 
+            disabled={currentSectionIndex === 0}
+            onClick={() => onSectionChange(currentSectionIndex - 1)}
+            className="w-10 h-10 flex items-center justify-center bg-white hover:bg-slate-50 border-r border-slate-200 disabled:opacity-30"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <button 
+            disabled={currentSectionIndex === sections.length - 1}
+            onClick={() => onSectionChange(currentSectionIndex + 1)}
+            className="w-10 h-10 flex items-center justify-center bg-white hover:bg-slate-50 disabled:opacity-30"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+        <button 
+          onClick={onFinish}
+          className="w-10 h-10 flex items-center justify-center bg-slate-100 text-slate-400 rounded hover:bg-slate-200 hover:text-slate-600 transition-colors"
+        >
+          <Check size={20} />
+        </button>
+      </div>
+    </footer>
+  );
+};
 const AudioPlayer = ({ src, onEnded }: { src: string; onEnded?: () => void }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -149,6 +273,7 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
   const [passageWidth, setPassageWidth] = useState(50); // percentage
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [userResults, setUserResults] = useState<any[]>([]);
@@ -324,36 +449,36 @@ export default function App() {
 
   const renderQuestion = (q: Question) => {
     const isAnswered = answers[q.id] !== undefined && answers[q.id] !== '';
+    const currentAnswer = answers[q.id];
     
     switch (q.type) {
       case 'mcq':
       case 'tfng':
         const opts = q.options || (q.type === 'tfng' ? ['TRUE', 'FALSE', 'NOT GIVEN'] : []);
-        
         return (
-          <div key={q.id} id={`question-${q.id}`} className="mb-10 flex items-start gap-8 scroll-mt-24 group">
-            <div className="w-8 h-8 flex items-center justify-center text-sm font-black bg-slate-100 text-slate-800 rounded-lg shrink-0 mt-0.5 group-hover:bg-ielts-blue group-hover:text-white transition-all">{q.id}</div>
-            <div className="flex-1">
-              <p className="text-[16px] font-bold text-slate-900 mb-6 leading-relaxed">{q.question}</p>
-              <div className="grid grid-cols-1 gap-3">
-                {opts.map((opt, i) => (
-                  <label key={opt} className={`flex items-center gap-4 cursor-pointer p-4 rounded-xl border-2 transition-all ${answers[q.id] === opt ? 'border-ielts-blue bg-blue-50/50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200'}`}>
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${answers[q.id] === opt ? 'border-ielts-blue' : 'border-slate-300'}`}>
-                      {answers[q.id] === opt && <div className="w-2.5 h-2.5 bg-ielts-blue rounded-full" />}
-                    </div>
-                    <span className={`text-[15px] font-bold ${answers[q.id] === opt ? 'text-ielts-blue' : 'text-slate-600'}`}>
-                      {opt}
-                    </span>
-                    <input 
-                      type="radio" 
-                      name={q.id} 
-                      value={opt}
-                      checked={answers[q.id] === opt}
-                      onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                      className="hidden"
-                    />
-                  </label>
-                ))}
+          <div key={q.id} id={`question-${q.id}`} className="mb-8 p-6 bg-white border border-slate-100 rounded-xl shadow-sm hover:shadow-md transition-all">
+            <div className="flex items-start gap-4">
+              <div className="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-800 font-bold rounded-lg shrink-0 text-sm">{q.id}</div>
+              <div className="flex-1">
+                <p className="text-slate-800 font-bold mb-4 leading-relaxed">{q.question}</p>
+                <div className="grid grid-cols-1 gap-2">
+                  {opts.map((opt, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleAnswerChange(q.id, opt)}
+                      className={`flex items-center gap-3 p-3 rounded-lg border text-left transition-all ${
+                        currentAnswer === opt 
+                          ? 'border-ielts-blue bg-blue-50/50 ring-1 ring-ielts-blue' 
+                          : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`ielts-radio-circle ${currentAnswer === opt ? 'selected' : ''}`}>
+                        {currentAnswer === opt && <div className="ielts-radio-dot" />}
+                      </div>
+                      <span className="text-sm font-medium text-slate-700">{opt}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -361,49 +486,189 @@ export default function App() {
       case 'form':
       case 'sentence':
         return (
-          <div key={q.id} id={`question-${q.id}`} className="mb-8 flex items-start gap-8 scroll-mt-24 group">
-            <div className="w-8 h-8 flex items-center justify-center text-sm font-black bg-slate-100 text-slate-800 rounded-lg shrink-0 mt-0.5 group-hover:bg-ielts-blue group-hover:text-white transition-all">{q.id}</div>
-            <div className="flex-1 text-[16px] text-slate-900 font-bold flex items-center flex-wrap gap-x-3 leading-loose">
-              {q.question.split('[___]').map((part, i, arr) => (
-                <React.Fragment key={i}>
-                  <span>{part}</span>
-                  {i < arr.length - 1 && (
-                    <input 
-                      type="text"
-                      value={answers[q.id] || ''}
-                      onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                      className="ielts-input w-56 h-10 text-center"
-                      placeholder="..."
-                    />
-                  )}
-                </React.Fragment>
-              ))}
+          <div key={q.id} id={`question-${q.id}`} className="mb-8 p-6 bg-white border border-slate-100 rounded-xl shadow-sm hover:shadow-md transition-all">
+            <div className="flex items-start gap-4">
+              <div className="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-800 font-bold rounded-lg shrink-0 text-sm">{q.id}</div>
+              <div className="flex-1">
+                <p className="text-slate-800 font-bold leading-relaxed">
+                  {q.question.split('[___]').map((part, i, arr) => (
+                    <React.Fragment key={i}>
+                      {part}
+                      {i < arr.length - 1 && (
+                        <input
+                          type="text"
+                          className="ielts-input mx-2 w-32"
+                          value={answers[q.id] || ''}
+                          onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                        />
+                      )}
+                    </React.Fragment>
+                  ))}
+                </p>
+              </div>
             </div>
           </div>
         );
-      case 'matching':
+      case 'multi-mcq':
         return (
-          <div key={q.id} id={`question-${q.id}`} className="mb-8 flex items-start gap-6 scroll-mt-20 group">
-            <div className="w-6 h-6 flex items-center justify-center text-sm font-bold text-slate-800 shrink-0 mt-1.5">{q.id}</div>
-            <div className="flex-1 bg-slate-50 p-6 rounded-xl border border-slate-200 group-hover:border-ielts-blue transition-colors">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <p className="text-[15px] font-bold text-slate-900 leading-relaxed">{q.question}</p>
-                <div className="relative min-w-[240px]">
-                  <select 
-                    value={answers[q.id] || ''}
-                    onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                    className="w-full h-11 pl-4 pr-10 bg-white border-2 border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-ielts-blue appearance-none transition-all cursor-pointer"
-                  >
-                    <option value="">Select an option...</option>
-                    {q.options?.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                    <ChevronRight size={18} className="rotate-90" />
-                  </div>
+          <div key={q.id} id={`question-${q.id}`} className="mb-8 p-6 bg-white border border-slate-100 rounded-xl shadow-sm hover:shadow-md transition-all">
+            <div className="flex items-start gap-4">
+              <div className="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-800 font-bold rounded-lg shrink-0 text-sm">{q.id}</div>
+              <div className="flex-1">
+                <p className="text-slate-800 font-bold mb-4 leading-relaxed">{q.question}</p>
+                <div className="grid grid-cols-1 gap-2">
+                  {q.options?.map((opt, idx) => {
+                    const isSelected = Array.isArray(currentAnswer) && currentAnswer.includes(opt);
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          const prev = Array.isArray(currentAnswer) ? currentAnswer : [];
+                          const next = isSelected ? prev.filter(i => i !== opt) : [...prev, opt];
+                          handleAnswerChange(q.id, next);
+                        }}
+                        className={`flex items-center gap-3 p-3 rounded-lg border text-left transition-all ${
+                          isSelected 
+                            ? 'border-ielts-blue bg-blue-50/50 ring-1 ring-ielts-blue' 
+                            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded border border-slate-300 flex items-center justify-center transition-all ${isSelected ? 'bg-ielts-blue border-ielts-blue' : 'bg-white'}`}>
+                          {isSelected && <Check size={14} className="text-white" />}
+                        </div>
+                        <span className="text-sm font-medium text-slate-700">{opt}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
+            </div>
+          </div>
+        );
+
+      case 'matching':
+      case 'map':
+      case 'flow-chart':
+        return (
+          <div key={q.id} id={`question-${q.id}`} className="mb-12">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-800 font-bold rounded-lg shrink-0 text-sm">{q.id}</div>
+              <div className="flex-1">
+                <p className="text-slate-800 font-bold leading-relaxed">{q.question}</p>
+              </div>
+            </div>
+            
+            <div className="flex gap-8 items-start">
+              <div className="flex-1 relative bg-slate-50 rounded-2xl p-8 border border-slate-200 min-h-[300px] flex items-center justify-center overflow-hidden">
+                {q.imageUrl ? (
+                  <div className="relative">
+                    <img src={q.imageUrl} alt="Map" className="max-w-full rounded shadow-lg" />
+                    {q.labels?.map(label => (
+                      <div 
+                        key={label.id}
+                        style={{ left: `${label.x}%`, top: `${label.y}%` }}
+                        className="absolute -translate-x-1/2 -translate-y-1/2"
+                      >
+                        <div 
+                          onClick={() => {
+                            if (selectedLabel) {
+                              handleAnswerChange(label.id, selectedLabel);
+                              setSelectedLabel(null);
+                            }
+                          }}
+                          className={`ielts-gap-box cursor-pointer hover:border-ielts-blue transition-all ${answers[label.id] ? 'border-solid border-ielts-blue bg-blue-50' : ''}`}
+                        >
+                          {answers[label.id] || label.id}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : q.type === 'flow-chart' ? (
+                  <div className="flex flex-col items-center gap-8">
+                    {q.labels?.map((label, idx) => (
+                      <React.Fragment key={label.id}>
+                        <div 
+                          onClick={() => {
+                            if (selectedLabel) {
+                              handleAnswerChange(label.id, selectedLabel);
+                              setSelectedLabel(null);
+                            }
+                          }}
+                          className={`ielts-gap-box cursor-pointer hover:border-ielts-blue transition-all ${answers[label.id] ? 'border-solid border-ielts-blue bg-blue-50' : ''}`}
+                        >
+                          {answers[label.id] || label.id}
+                        </div>
+                        {idx < q.labels!.length - 1 && <ChevronRight className="rotate-90 text-slate-300" />}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="w-full space-y-4">
+                    <div className="p-4 bg-white border border-slate-200 rounded-xl">
+                      <p className="text-sm font-bold text-slate-700 mb-4">{q.question}</p>
+                      <div 
+                        onClick={() => {
+                          if (selectedLabel) {
+                            handleAnswerChange(q.id, selectedLabel);
+                            setSelectedLabel(null);
+                          }
+                        }}
+                        className={`ielts-gap-box cursor-pointer hover:border-ielts-blue transition-all w-full h-12 ${answers[q.id] ? 'border-solid border-ielts-blue bg-blue-50' : ''}`}
+                      >
+                        {answers[q.id] || 'Click an option on the right then click here'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="w-64 space-y-2">
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Options</div>
+                {q.options?.map((opt, idx) => (
+                  <div 
+                    key={idx}
+                    onClick={() => setSelectedLabel(opt)}
+                    className={`ielts-label-box w-full text-center py-3 ${selectedLabel === opt ? 'ring-2 ring-ielts-blue border-ielts-blue bg-blue-50' : ''}`}
+                  >
+                    {opt}
+                  </div>
+                ))}
+                <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="flex items-center gap-2 text-ielts-blue mb-2">
+                    <HelpCircle size={14} />
+                    <span className="text-[10px] font-bold uppercase">How to answer</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">Click an option on the right, then click a gap on the left to move it.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'table':
+        return (
+          <div key={q.id} id={`question-${q.id}`} className="mb-12">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-800 font-bold rounded-lg shrink-0 text-sm">{q.id}</div>
+              <div className="flex-1">
+                <p className="text-slate-800 font-bold leading-relaxed">{q.question}</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="ielts-table">
+                <thead>
+                  <tr>
+                    <th>Factor</th>
+                    <th>Importance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{q.question.split(' - ')[1]}</td>
+                    <td><input className="ielts-input w-full" value={answers[q.id] || ''} onChange={(e) => handleAnswerChange(q.id, e.target.value)} /></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         );
@@ -759,61 +1024,28 @@ export default function App() {
     const module = MOCK_TEST_DATA[activeModule!];
     const section = module.sections[currentSectionIndex];
 
-    // Calculate total questions across all sections
-    let totalQuestionsCount = 0;
-    module.sections.forEach(s => totalQuestionsCount += s.questions.length);
-
-    // Get all questions in a flat array for navigation
-    const allQuestions: Question[] = [];
-    module.sections.forEach(s => allQuestions.push(...s.questions));
-
     return (
       <div className="h-screen flex flex-col bg-white overflow-hidden select-none">
-        {/* Real IELTS Header */}
-        <header className="ielts-test-header !h-16 border-b-2 border-slate-200">
-          <div className="flex items-center gap-6">
-            <div className="ielts-logo-box px-3 py-1 text-lg rounded-md">IELTS</div>
-            <BLCLogo />
-            <div className="h-8 w-px bg-slate-200" />
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Test taker ID: <span className="text-slate-900 ml-1">{user?.email || 'user@gmail.com'}</span>
-            </div>
-          </div>
-          
-          <div className="absolute left-1/2 -translate-x-1/2 bg-slate-50 px-6 py-1.5 rounded-full border border-slate-200 shadow-sm">
-            <Timer duration={module.duration} onTimeUp={submitTest} />
-          </div>
-
-          <div className="flex items-center gap-4">
-            {activeModule === 'listening' && (
-              <div className="flex items-center gap-3 mr-4 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
-                <Volume2 size={18} className="text-slate-600" />
-                <div className="w-24 h-1.5 bg-slate-200 rounded-full relative overflow-hidden">
-                  <div className="absolute left-0 top-0 h-full w-2/3 bg-ielts-blue rounded-full" />
-                </div>
-              </div>
-            )}
-            <button className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200">
-              <Menu size={22} className="text-slate-700" />
-            </button>
-            <button 
-              onClick={submitTest}
-              className="bg-ielts-blue text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-md active:scale-95"
-            >
-              Submit
-            </button>
-          </div>
-        </header>
+        <TestHeader userEmail={user?.email} onFinish={submitTest} />
 
         {/* Real IELTS Subheader */}
-        <div className="bg-slate-100 border-b border-slate-300 py-6">
-          <div className="max-w-7xl mx-auto w-full px-8">
-            <div className="flex items-baseline gap-4 mb-2">
-              <div className="text-ielts-blue font-black text-2xl uppercase tracking-tight">{section.title}</div>
+        <div className="bg-slate-50 border-b border-slate-200 py-3 px-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="text-ielts-blue font-black text-lg uppercase tracking-tight">{section.title}</div>
               <div className="h-4 w-px bg-slate-300" />
-              <div className="text-slate-500 font-bold text-sm uppercase tracking-widest">Questions {section.questions[0].id} - {section.questions[section.questions.length - 1].id}</div>
+              {section.questions.length > 0 && (
+                <div className="text-slate-500 font-bold text-xs uppercase tracking-widest">
+                  Questions {section.questions[0].id} - {section.questions[section.questions.length - 1].id}
+                </div>
+              )}
             </div>
-            <div className="text-slate-700 text-[15px] font-medium leading-relaxed max-w-4xl">{section.instruction}</div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-slate-500">
+                <Clock size={16} />
+                <Timer duration={module.duration} onTimeUp={submitTest} />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -821,9 +1053,14 @@ export default function App() {
         <main className="flex-1 flex overflow-hidden relative">
           {activeModule === 'listening' && (
             <div className="flex-1 flex flex-col relative">
-              <AudioPlayer src={section.content} />
+              <div className="bg-slate-100 border-b border-slate-200 p-4">
+                <AudioPlayer src={section.content} />
+              </div>
               <div className="flex-1 overflow-y-auto ielts-scrollbar bg-white">
                 <div className="max-w-4xl mx-auto px-12 py-12">
+                  <div className="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-xl">
+                    <p className="text-slate-700 text-sm font-medium leading-relaxed">{section.instruction}</p>
+                  </div>
                   {section.questions.map(renderQuestion)}
                 </div>
               </div>
@@ -836,7 +1073,9 @@ export default function App() {
                 className="passage-container ielts-scrollbar"
                 style={{ width: `${passageWidth}%` }}
               >
-                <div className="prose prose-slate max-w-none prose-p:leading-relaxed prose-p:text-slate-600" dangerouslySetInnerHTML={{ __html: section.content }} />
+                <div className="p-8">
+                  <div className="prose prose-slate max-w-none prose-p:leading-relaxed prose-p:text-slate-600" dangerouslySetInnerHTML={{ __html: section.content }} />
+                </div>
               </div>
               <div 
                 className="w-1 bg-slate-300 hover:bg-ielts-blue cursor-col-resize transition-colors z-10 flex items-center justify-center"
@@ -862,10 +1101,10 @@ export default function App() {
                 className="questions-container ielts-scrollbar !p-0"
                 style={{ width: `${100 - passageWidth}%` }}
               >
-                <div className="sticky top-0 bg-slate-50 border-b border-slate-200 px-8 py-3 z-20">
-                  <h3 className="text-sm font-bold text-slate-800">Questions {section.questions[0].id} - {section.questions[section.questions.length - 1].id}</h3>
-                </div>
                 <div className="p-8">
+                  <div className="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-xl">
+                    <p className="text-slate-700 text-sm font-medium leading-relaxed">{section.instruction}</p>
+                  </div>
                   {section.questions.map(renderQuestion)}
                 </div>
               </div>
@@ -878,8 +1117,13 @@ export default function App() {
                 className="passage-container ielts-scrollbar"
                 style={{ width: `${passageWidth}%` }}
               >
-                <div className="mb-8">
-                  <p className="text-slate-700 font-medium whitespace-pre-wrap">{section.content}</p>
+                <div className="p-8">
+                  <div className="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-xl">
+                    <p className="text-slate-700 text-sm font-medium leading-relaxed">{section.instruction}</p>
+                  </div>
+                  <div className="mb-8">
+                    <p className="text-slate-700 font-medium whitespace-pre-wrap">{section.content}</p>
+                  </div>
                 </div>
               </div>
               <div 
@@ -903,7 +1147,7 @@ export default function App() {
                 <div className="h-8 w-px bg-slate-400" />
               </div>
               <div 
-                className="questions-container ielts-scrollbar flex flex-col gap-4"
+                className="questions-container ielts-scrollbar flex flex-col gap-4 p-8"
                 style={{ width: `${100 - passageWidth}%` }}
               >
                 <textarea 
@@ -984,75 +1228,13 @@ export default function App() {
           </div>
         </main>
 
-        {/* Real IELTS Footer */}
-        <footer className="h-24 bg-white border-t-2 border-slate-200 flex flex-col">
-          <div className="flex border-b border-slate-100 h-10 overflow-x-auto ielts-scrollbar">
-            {module.sections.map((s, sIdx) => {
-              const answeredCount = s.questions.filter(q => answers[q.id]).length;
-              const isCurrent = currentSectionIndex === sIdx;
-              return (
-                <button 
-                  key={sIdx}
-                  onClick={() => setCurrentSectionIndex(sIdx)}
-                  className={`px-8 h-full text-[11px] font-black uppercase tracking-widest flex items-center gap-3 border-r border-slate-100 transition-all whitespace-nowrap ${isCurrent ? 'bg-ielts-blue text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}
-                >
-                  {s.title}
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] ${isCurrent ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                    {answeredCount}/{s.questions.length}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="flex-1 flex items-center justify-between px-6">
-            <div className="flex items-center gap-1 overflow-x-auto ielts-scrollbar py-2">
-              {allQuestions.map((q) => {
-                const isAnswered = answers[q.id] !== undefined && answers[q.id] !== '';
-                const isCurrentSection = section.questions.some(sq => sq.id === q.id);
-                
-                return (
-                  <button 
-                    key={q.id}
-                    onClick={() => {
-                      const sIdx = module.sections.findIndex(s => s.questions.some(sq => sq.id === q.id));
-                      setCurrentSectionIndex(sIdx);
-                      setTimeout(() => {
-                        const el = document.getElementById(`question-${q.id}`);
-                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 100);
-                    }}
-                    className={`w-9 h-9 flex items-center justify-center text-[11px] font-bold rounded-md transition-all border-2 ${
-                      isAnswered 
-                        ? 'bg-slate-800 border-slate-800 text-white' 
-                        : isCurrentSection 
-                          ? 'border-ielts-blue text-ielts-blue bg-blue-50' 
-                          : 'border-slate-200 text-slate-400 hover:border-slate-300'
-                    }`}
-                  >
-                    {q.id}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center gap-3 pl-6 border-l border-slate-200">
-              <button 
-                disabled={currentSectionIndex === 0}
-                onClick={() => setCurrentSectionIndex(prev => prev - 1)}
-                className="w-10 h-10 flex items-center justify-center rounded-xl border-2 border-slate-200 text-slate-400 hover:border-ielts-blue hover:text-ielts-blue disabled:opacity-30 disabled:hover:border-slate-200 disabled:hover:text-slate-400 transition-all"
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <button 
-                disabled={currentSectionIndex === module.sections.length - 1}
-                onClick={() => setCurrentSectionIndex(prev => prev + 1)}
-                className="w-10 h-10 flex items-center justify-center rounded-xl border-2 border-slate-200 text-slate-400 hover:border-ielts-blue hover:text-ielts-blue disabled:opacity-30 disabled:hover:border-slate-200 disabled:hover:text-slate-400 transition-all"
-              >
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          </div>
-        </footer>
+        <TestFooter 
+          sections={module.sections}
+          currentSectionIndex={currentSectionIndex}
+          onSectionChange={setCurrentSectionIndex}
+          answers={answers}
+          onFinish={submitTest}
+        />
 
         {/* Warning Modal */}
         <AnimatePresence>

@@ -10,11 +10,12 @@
   --color-ielts-light-blue: #eef6fb;
   --color-ielts-gray: #f4f4f4;
   --color-ielts-border: #d1d5db;
+  --color-ielts-footer-bg: #f8f9fa;
 }
 
 @layer base {
   body {
-    @apply font-sans bg-white text-slate-900;
+    @apply font-sans bg-white text-slate-900 antialiased;
   }
 }
 
@@ -95,7 +96,27 @@
 }
 
 .ielts-input {
-  @apply border-2 border-slate-200 rounded-lg px-4 py-1.5 outline-none focus:border-ielts-blue focus:bg-blue-50/30 transition-all bg-white text-sm font-bold text-slate-700 shadow-sm;
+  @apply border border-slate-400 rounded-md px-2 py-0.5 outline-none focus:border-ielts-blue transition-all bg-white text-sm font-medium text-slate-800;
+}
+
+.ielts-label-box {
+  @apply border border-slate-300 rounded px-3 py-1 bg-white text-xs font-medium cursor-pointer hover:bg-slate-50 transition-colors shadow-sm inline-block;
+}
+
+.ielts-gap-box {
+  @apply border border-dashed border-slate-400 rounded min-w-[80px] h-8 flex items-center justify-center bg-slate-50 text-xs font-bold text-slate-700;
+}
+
+.ielts-table {
+  @apply w-full border-collapse border border-slate-300;
+}
+
+.ielts-table th, .ielts-table td {
+  @apply border border-slate-300 p-3 text-sm;
+}
+
+.ielts-table th {
+  @apply bg-slate-50 font-bold text-slate-700;
 }
 
 .ielts-radio-circle {
