@@ -33,6 +33,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { MOCK_TEST_DATA, TestModule, Question, Section } from './types';
 import { auth, db } from './services/firebase';
+import ListeningTest from './components/listening/ListeningTest';
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
@@ -172,7 +173,7 @@ const TestFooter = ({
                       }}
                       className={`ielts-question-nav-item ${answers[q.id] ? 'answered' : ''}`}
                     >
-                      {q.id}
+                      {q.id.replace('q', '')}
                     </div>
                   ))}
                 </div>
@@ -1036,7 +1037,7 @@ export default function App() {
               <div className="h-4 w-px bg-slate-300" />
               {section.questions.length > 0 && (
                 <div className="text-slate-500 font-bold text-xs uppercase tracking-widest">
-                  Questions {section.questions[0].id} - {section.questions[section.questions.length - 1].id}
+                  Questions {section.questions[0].id.replace('q', '')} - {section.questions[section.questions.length - 1].id.replace('q', '')}
                 </div>
               )}
             </div>
@@ -1056,14 +1057,11 @@ export default function App() {
               <div className="bg-slate-100 border-b border-slate-200 p-4">
                 <AudioPlayer src={section.content} />
               </div>
-              <div className="flex-1 overflow-y-auto ielts-scrollbar bg-white">
-                <div className="max-w-4xl mx-auto px-12 py-12">
-                  <div className="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-xl">
-                    <p className="text-slate-700 text-sm font-medium leading-relaxed">{section.instruction}</p>
-                  </div>
-                  {section.questions.map(renderQuestion)}
-                </div>
-              </div>
+              <ListeningTest 
+                currentSectionIndex={currentSectionIndex} 
+                answers={answers} 
+                onAnswerChange={handleAnswerChange} 
+              />
             </div>
           )}
 
