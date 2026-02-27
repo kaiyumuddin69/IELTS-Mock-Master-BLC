@@ -69,6 +69,18 @@ async function startServer() {
     res.json(row ? JSON.parse(row.answers) : {});
   });
 
+  app.post("/api/send-feedback-email", (req, res) => {
+    const { email, studentName, testTitle, score, feedback } = req.body;
+    
+    console.log(`[EMAIL SERVICE] Sending feedback to ${email}...`);
+    console.log(`Subject: Your IELTS Writing Feedback - ${testTitle}`);
+    console.log(`Content: Hello ${studentName}, your writing test has been marked. Score: ${score}. Feedback: ${feedback}`);
+    
+    // In a real app, you'd use nodemailer or a service like SendGrid here.
+    // For this demo, we'll simulate success.
+    res.json({ success: true, message: "Feedback email sent successfully" });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

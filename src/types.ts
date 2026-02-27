@@ -42,6 +42,32 @@ export interface TestModule {
   sections: Section[];
 }
 
+export interface WritingTest {
+  id: string;
+  title: string;
+  task1Prompt: string;
+  task2Prompt: string;
+  duration: number;
+  createdAt: any;
+  createdBy: string;
+}
+
+export interface WritingSubmission {
+  id: string;
+  testId: string;
+  testTitle: string;
+  studentId: string;
+  studentEmail: string;
+  studentName: string;
+  task1Answer: string;
+  task2Answer: string;
+  status: 'pending' | 'marked';
+  score?: number;
+  feedback?: string;
+  submittedAt: any;
+  markedAt?: any;
+}
+
 export const MOCK_TEST_DATA: Record<string, TestModule> = {
   listening: {
     id: 'l1',

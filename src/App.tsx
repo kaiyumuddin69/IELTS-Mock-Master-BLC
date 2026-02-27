@@ -28,12 +28,15 @@ import {
   Check,
   HelpCircle,
   Wifi,
-  Bell
+  Bell,
+  ArrowLeft,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MOCK_TEST_DATA, TestModule, Question, Section } from './types';
+import { MOCK_TEST_DATA, TestModule, Question, Section, WritingTest, WritingSubmission } from './types';
 import { auth, db } from './services/firebase';
 import ListeningTest from './components/listening/ListeningTest';
+import InstructorPanel from './components/instructor/InstructorPanel';
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
@@ -267,7 +270,7 @@ const AudioPlayer = ({ src, onEnded }: { src: string; onEnded?: () => void }) =>
 // --- Main App ---
 
 export default function App() {
-  const [view, setView] = useState<'landing' | 'instructions' | 'test' | 'result'>('landing');
+  const [view, setView] = useState<'landing' | 'instructions' | 'test' | 'result' | 'instructor'>('landing');
   const [activeModule, setActiveModule] = useState<keyof typeof MOCK_TEST_DATA | null>(null);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -278,6 +281,29 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [userResults, setUserResults] = useState<any[]>([]);
+  const [writingTests, setWritingTests] = useState<WritingTest[]>([]);
+  const [readingTests, setReadingTests] = useState<TestModule[]>([]);
+  const [listeningTests, setListeningTests] = useState<TestModule[]>([]);
+  const [selectedWritingTest, setSelectedWritingTest] = useState<WritingTest | null>(null);
+  const [selectedCustomTest, setSelectedCustomTest] = useState<TestModule | null>(null);
+
+  const fetchTests = async () => {
+    try {
+      const writingSnap = await getDocs(query(collection(db, 'writing_tests'), orderBy('createdAt', 'desc')));
+      const readingSnap = await getDocs(query(collection(db, 'reading_tests'), orderBy('createdAt', 'desc')));
+      const listeningSnap = await getDocs(query(collection(db, 'listening_tests'), orderBy('createdAt', 'desc')));
+      
+      setWritingTests(writingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as WritingTest)));
+      setReadingTests(readingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TestModule)));
+      setListeningTests(listeningSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TestModule)));
+    } catch (e) {
+      console.error("Error fetching tests", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchTests();
+  }, []);
 
   const fetchUserResults = async (userId: string) => {
     try {
@@ -361,12 +387,17 @@ export default function App() {
     document.documentElement.requestFullscreen().catch(e => console.error(e));
   };
 
-  const startTest = (moduleKey: keyof typeof MOCK_TEST_DATA) => {
+  const startTest = (moduleKey: keyof typeof MOCK_TEST_DATA, customTest?: TestModule) => {
     if (!user) {
       setShowAuthModal(true);
       return;
     }
     setActiveModule(moduleKey);
+    if (customTest) {
+      setSelectedCustomTest(customTest);
+    } else {
+      setSelectedCustomTest(null);
+    }
     setView('instructions');
   };
 
@@ -384,20 +415,39 @@ export default function App() {
       document.exitFullscreen();
     }
     
-    if (user && activeModule) {
+    const currentModuleData = selectedCustomTest || (activeModule ? MOCK_TEST_DATA[activeModule] : null);
+
+    if (user && activeModule && currentModuleData) {
       try {
-        const testId = MOCK_TEST_DATA[activeModule].id;
-        const resultRef = collection(db, 'results');
-        await addDoc(resultRef, {
-          userId: user.uid,
-          userEmail: user.email,
-          testId,
-          module: activeModule,
-          answers,
-          score: calculateScore().score,
-          total: calculateScore().total,
-          timestamp: serverTimestamp()
-        });
+        if (activeModule === 'writing' && selectedWritingTest) {
+          // Special handling for Writing Submissions
+          const submissionRef = collection(db, 'writing_submissions');
+          await addDoc(submissionRef, {
+            testId: selectedWritingTest.id,
+            testTitle: selectedWritingTest.title,
+            studentId: user.uid,
+            studentEmail: user.email,
+            studentName: user.displayName || user.email?.split('@')[0] || 'Student',
+            task1Answer: answers[`writing_ws1`] || '',
+            task2Answer: answers[`writing_ws2`] || '',
+            status: 'pending',
+            submittedAt: serverTimestamp()
+          });
+        } else {
+          const testId = currentModuleData.id;
+          const resultRef = collection(db, 'results');
+          const { score, total } = calculateScore();
+          await addDoc(resultRef, {
+            userId: user.uid,
+            userEmail: user.email,
+            testId,
+            module: activeModule,
+            answers,
+            score,
+            total,
+            timestamp: serverTimestamp()
+          });
+        }
         // Refresh results
         fetchUserResults(user.uid);
       } catch (e) {
@@ -409,12 +459,13 @@ export default function App() {
   };
 
   const calculateScore = () => {
-    if (!activeModule) return { score: 0, total: 0 };
-    const module = MOCK_TEST_DATA[activeModule];
+    const currentModuleData = selectedCustomTest || (activeModule ? MOCK_TEST_DATA[activeModule] : null);
+    if (!currentModuleData) return { score: 0, total: 0 };
+    
     let score = 0;
     let total = 0;
 
-    module.sections.forEach(section => {
+    currentModuleData.sections.forEach(section => {
       section.questions.forEach(q => {
         total++;
         const userAnswer = answers[q.id];
@@ -686,6 +737,34 @@ export default function App() {
     );
   }
 
+  if (view === 'instructor') {
+    return (
+      <div className="h-screen flex flex-col bg-white overflow-hidden">
+        <header className="h-16 border-b border-slate-200 px-8 flex items-center justify-between bg-white">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setView('landing')}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <BLCLogo />
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-sm font-black text-slate-900">Instructor Panel</div>
+              <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Administrator</div>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-black">
+              {user?.displayName?.[0] || 'A'}
+            </div>
+          </div>
+        </header>
+        <InstructorPanel />
+      </div>
+    );
+  }
+
   if (view === 'landing') {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -697,6 +776,15 @@ export default function App() {
             <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Mock Master</span>
           </div>
           <div className="flex items-center gap-6">
+            {user && (
+              <button 
+                onClick={() => setView('instructor')}
+                className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-sm transition-colors"
+              >
+                <Settings size={18} />
+                Instructor Panel
+              </button>
+            )}
             {user ? (
               <div className="flex items-center gap-4">
                 <div className="text-right">
@@ -926,6 +1014,121 @@ export default function App() {
             ))}
           </div>
 
+          {user && readingTests.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-16"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-2xl font-black text-slate-900">Custom Reading Tests</h3>
+                  <p className="text-slate-500 font-medium">Tests created by your instructors</p>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {readingTests.map(test => (
+                  <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
+                        <BookOpen size={20} />
+                      </div>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reading</span>
+                    </div>
+                    <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
+                    <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
+                      <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
+                    </div>
+                    <button 
+                      onClick={() => startTest('reading', test)}
+                      className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+                    >
+                      Start Test
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {user && listeningTests.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-16"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-2xl font-black text-slate-900">Custom Listening Tests</h3>
+                  <p className="text-slate-500 font-medium">Tests created by your instructors</p>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {listeningTests.map(test => (
+                  <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
+                        <Headphones size={20} />
+                      </div>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listening</span>
+                    </div>
+                    <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
+                    <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
+                      <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
+                    </div>
+                    <button 
+                      onClick={() => startTest('listening', test)}
+                      className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+                    >
+                      Start Test
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {user && writingTests.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-16"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-2xl font-black text-slate-900">Custom Writing Tests</h3>
+                  <p className="text-slate-500 font-medium">Tests created by your instructors</p>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {writingTests.map(test => (
+                  <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
+                        <PenTool size={20} />
+                      </div>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Writing</span>
+                    </div>
+                    <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
+                    <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
+                      <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
+                      <div className="flex items-center gap-1"><FileText size={12} /> 2 Tasks</div>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setSelectedWritingTest(test);
+                        startTest('writing');
+                      }}
+                      className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+                    >
+                      Start Test
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
           {user && userResults.length > 0 && (
             <motion.div 
               initial={{ opacity: 0 }}
@@ -987,7 +1190,7 @@ export default function App() {
   }
 
   if (view === 'instructions') {
-    const module = MOCK_TEST_DATA[activeModule!];
+    const module = selectedCustomTest || MOCK_TEST_DATA[activeModule!];
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8">
         <motion.div 
@@ -1022,7 +1225,7 @@ export default function App() {
   }
 
   if (view === 'test') {
-    const module = MOCK_TEST_DATA[activeModule!];
+    const module = selectedCustomTest || MOCK_TEST_DATA[activeModule!];
     const section = module.sections[currentSectionIndex];
 
     return (
@@ -1117,10 +1320,18 @@ export default function App() {
               >
                 <div className="p-8">
                   <div className="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-xl">
-                    <p className="text-slate-700 text-sm font-medium leading-relaxed">{section.instruction}</p>
+                    <p className="text-slate-700 text-sm font-medium leading-relaxed">
+                      {selectedWritingTest 
+                        ? (currentSectionIndex === 0 ? "Task 1: You should spend about 20 minutes on this task. Write at least 150 words." : "Task 2: You should spend about 40 minutes on this task. Write at least 250 words.")
+                        : section.instruction}
+                    </p>
                   </div>
                   <div className="mb-8">
-                    <p className="text-slate-700 font-medium whitespace-pre-wrap">{section.content}</p>
+                    <p className="text-slate-700 font-medium whitespace-pre-wrap">
+                      {selectedWritingTest 
+                        ? (currentSectionIndex === 0 ? selectedWritingTest.task1Prompt : selectedWritingTest.task2Prompt)
+                        : section.content}
+                    </p>
                   </div>
                 </div>
               </div>
