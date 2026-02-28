@@ -15,7 +15,8 @@ import {
   X,
   Headphones,
   BookOpen,
-  Layout
+  Layout,
+  Mic
 } from 'lucide-react';
 import { db } from '../../services/firebase';
 import { 
@@ -32,8 +33,11 @@ import {
 } from 'firebase/firestore';
 import { WritingTest, WritingSubmission, TestModule } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { isAdmin, auth } from '../../services/firebase';
+import { User } from 'firebase/auth';
+import { GoogleGenAI } from "@google/genai";
 
-export default function InstructorPanel() {
+export default function InstructorPanel({ user }: { user: User | null }) {
   const [activeTab, setActiveTab] = useState<'writing' | 'reading' | 'listening' | 'submissions'>('writing');
   const [writingTests, setWritingTests] = useState<WritingTest[]>([]);
   const [readingTests, setReadingTests] = useState<TestModule[]>([]);
@@ -103,6 +107,122 @@ export default function InstructorPanel() {
     }
   };
 
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleSeedData = async () => {
+    if (!confirm("This will populate the database with sample tests. Continue?")) return;
+    setIsSeeding(true);
+    try {
+      // Seed Writing Test
+      await addDoc(collection(db, 'writing_tests'), {
+        title: 'Academic Writing Practice 1',
+        duration: 60,
+        task1Prompt: 'The table below shows the number of cars made in Argentina, Australia and Thailand from 2003 to 2009. Summarise the information by selecting and reporting the main features.',
+        task2Prompt: 'The animal species are becoming extinct due to human activities on land and in sea. What are the reasons and solutions?',
+        createdAt: serverTimestamp(),
+        createdBy: user?.uid
+      });
+
+      // Seed Reading Test
+      await addDoc(collection(db, 'reading_tests'), {
+        title: 'Reading Practice Test 1',
+        type: 'reading',
+        duration: 60,
+        sections: [
+          {
+            id: 'rs1',
+            title: 'Reading Part 1',
+            instruction: 'Read the passage and answer questions 1-5.',
+            content: '<h2>Katherine Mansfield</h2><p>Katherine Mansfield was a modernist writer of short fiction...</p>',
+            questions: [
+              { id: '1', type: 'tfng', question: 'The name Katherine Mansfield was her original name.', options: ['TRUE', 'FALSE', 'NOT GIVEN'], correctAnswer: 'FALSE' },
+              { id: '2', type: 'tfng', question: 'How Pearl Button Was Kidnapped portrayed Maori people in a favorable way.', options: ['TRUE', 'FALSE', 'NOT GIVEN'], correctAnswer: 'TRUE' }
+            ]
+          }
+        ],
+        createdAt: serverTimestamp(),
+        createdBy: user?.uid
+      });
+
+      alert("Seed data added successfully!");
+      fetchData();
+    } catch (e) {
+      console.error("Error seeding data", e);
+      alert("Failed to seed data.");
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  const handleAIGenerate = async () => {
+    const topic = prompt("Enter a topic for the test (e.g. Climate Change, Artificial Intelligence):");
+    if (!topic) return;
+
+    setIsGenerating(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Generate a complete IELTS ${activeTab} test about "${topic}". 
+        Return ONLY a JSON object matching this structure:
+        {
+          "title": "Test Title",
+          "duration": 60,
+          "sections": [
+            {
+              "id": "s1",
+              "title": "Section 1",
+              "instruction": "Instructions...",
+              "content": "Full passage text (HTML) or Audio URL placeholder",
+              "questions": [
+                { "id": "q1", "type": "mcq", "question": "Question text?", "options": ["A", "B", "C"], "correctAnswer": "A" }
+              ]
+            }
+          ]
+        }`,
+      });
+
+      const data = JSON.parse(response.text.replace(/```json|```/g, '').trim());
+      
+      await addDoc(collection(db, `${activeTab}_tests`), {
+        ...data,
+        type: activeTab,
+        createdAt: serverTimestamp(),
+        createdBy: user?.uid
+      });
+
+      alert("AI Test generated and saved!");
+      fetchData();
+    } catch (e) {
+      console.error("Error generating AI test", e);
+      alert("Failed to generate AI test. Check console for details.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleClearAllData = async () => {
+    if (!confirm("WARNING: This will delete ALL tests and submissions. This cannot be undone. Continue?")) return;
+    const password = prompt("Type 'DELETE' to confirm:");
+    if (password !== 'DELETE') return;
+
+    try {
+      const collections = ['writing_tests', 'reading_tests', 'listening_tests', 'writing_submissions', 'results'];
+      for (const colName of collections) {
+        const snap = await getDocs(collection(db, colName));
+        for (const docItem of snap.docs) {
+          await deleteDoc(doc(db, colName, docItem.id));
+        }
+      }
+      alert("All data cleared successfully!");
+      fetchData();
+    } catch (e) {
+      console.error("Error clearing data", e);
+      alert("Failed to clear data.");
+    }
+  };
+
   const handleCreateModuleTest = async (e: React.FormEvent) => {
     e.preventDefault();
     const collectionName = newModuleTest.type === 'reading' ? 'reading_tests' : 'listening_tests';
@@ -110,14 +230,14 @@ export default function InstructorPanel() {
       await addDoc(collection(db, collectionName), {
         ...newModuleTest,
         createdAt: serverTimestamp(),
-        createdBy: 'admin',
+        createdBy: user?.uid,
         sections: [
           {
             id: 's1',
             title: 'Section 1',
             instruction: newModuleTest.instruction,
             content: newModuleTest.content,
-            questions: [] // Admin would add questions here in a full version
+            questions: []
           }
         ]
       });
@@ -181,6 +301,17 @@ export default function InstructorPanel() {
     );
   }
 
+  if (!isAdmin(user?.email)) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-slate-900">Access Denied</h2>
+          <p className="text-slate-500">You do not have permission to access this panel.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col bg-slate-50 overflow-hidden">
       {/* Header */}
@@ -191,6 +322,29 @@ export default function InstructorPanel() {
             <p className="text-slate-500 font-medium">Manage tests and track student progress</p>
           </div>
           <div className="flex items-center gap-4">
+            <button 
+              onClick={handleClearAllData}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold text-sm hover:bg-red-100 transition-all"
+            >
+              <X size={18} />
+              Clear All Data
+            </button>
+            <button 
+              onClick={handleSeedData}
+              disabled={isSeeding}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-all disabled:opacity-50"
+            >
+              <Layout size={18} />
+              {isSeeding ? 'Seeding...' : 'Seed Demo Data'}
+            </button>
+            <button 
+              onClick={handleAIGenerate}
+              disabled={isGenerating}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-xl font-bold text-sm hover:bg-purple-100 transition-all disabled:opacity-50"
+            >
+              <Mic size={18} />
+              {isGenerating ? 'Generating...' : 'AI Generate'}
+            </button>
             <button 
               onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"

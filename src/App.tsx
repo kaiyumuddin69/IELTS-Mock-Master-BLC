@@ -30,11 +30,12 @@ import {
   Wifi,
   Bell,
   ArrowLeft,
-  FileText
+  FileText,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MOCK_TEST_DATA, TestModule, Question, Section, WritingTest, WritingSubmission } from './types';
-import { auth, db } from './services/firebase';
+import { auth, db, isAdmin } from './services/firebase';
 import ListeningTest from './components/listening/ListeningTest';
 import InstructorPanel from './components/instructor/InstructorPanel';
 import { 
@@ -57,7 +58,9 @@ import {
   query, 
   where, 
   getDocs, 
-  orderBy 
+  orderBy,
+  updateDoc,
+  deleteDoc
 } from 'firebase/firestore';
 
 // --- Components ---
@@ -271,7 +274,7 @@ const AudioPlayer = ({ src, onEnded }: { src: string; onEnded?: () => void }) =>
 
 export default function App() {
   const [view, setView] = useState<'landing' | 'instructions' | 'test' | 'result' | 'instructor'>('landing');
-  const [activeModule, setActiveModule] = useState<keyof typeof MOCK_TEST_DATA | null>(null);
+  const [activeModule, setActiveModule] = useState<string | null>(null);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -281,6 +284,10 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [userResults, setUserResults] = useState<any[]>([]);
+  const [practiceTasks, setPracticeTasks] = useState<any[]>([]);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [isAddingTask, setIsAddingTask] = useState(false);
   const [writingTests, setWritingTests] = useState<WritingTest[]>([]);
   const [readingTests, setReadingTests] = useState<TestModule[]>([]);
   const [listeningTests, setListeningTests] = useState<TestModule[]>([]);
@@ -302,8 +309,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchTests();
-  }, []);
+    if (user) {
+      fetchTests();
+    }
+  }, [user]);
 
   const fetchUserResults = async (userId: string) => {
     try {
@@ -315,8 +324,17 @@ export default function App() {
       const querySnapshot = await getDocs(q);
       const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setUserResults(results);
+
+      // Fetch practice tasks
+      const tasksQuery = query(
+        collection(db, 'practice_tasks'), 
+        where('userId', '==', userId), 
+        orderBy('createdAt', 'desc')
+      );
+      const tasksSnap = await getDocs(tasksQuery);
+      setPracticeTasks(tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     } catch (e) {
-      console.error("Error fetching results", e);
+      console.error("Error fetching user data", e);
     }
   };
   
@@ -383,11 +401,53 @@ export default function App() {
 
   const logout = () => signOut(auth);
 
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !newTaskTitle || !newTaskDueDate) return;
+    setIsAddingTask(true);
+    try {
+      await addDoc(collection(db, 'practice_tasks'), {
+        userId: user.uid,
+        title: newTaskTitle,
+        dueDate: newTaskDueDate,
+        completed: false,
+        createdAt: serverTimestamp()
+      });
+      setNewTaskTitle('');
+      setNewTaskDueDate('');
+      if (user) fetchUserResults(user.uid);
+    } catch (e) {
+      console.error("Error adding task", e);
+    } finally {
+      setIsAddingTask(false);
+    }
+  };
+
+  const toggleTask = async (taskId: string, currentStatus: boolean) => {
+    try {
+      await updateDoc(doc(db, 'practice_tasks', taskId), {
+        completed: !currentStatus
+      });
+      setPracticeTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !currentStatus } : t));
+    } catch (e) {
+      console.error("Error updating task", e);
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    try {
+      await deleteDoc(doc(db, 'practice_tasks', taskId));
+      setPracticeTasks(prev => prev.filter(t => t.id !== taskId));
+    } catch (e) {
+      console.error("Error deleting task", e);
+    }
+  };
+
   const enterFullscreen = () => {
     document.documentElement.requestFullscreen().catch(e => console.error(e));
   };
 
-  const startTest = (moduleKey: keyof typeof MOCK_TEST_DATA, customTest?: TestModule) => {
+  const startTest = (moduleKey: string, customTest?: TestModule) => {
     if (!user) {
       setShowAuthModal(true);
       return;
@@ -415,7 +475,7 @@ export default function App() {
       document.exitFullscreen();
     }
     
-    const currentModuleData = selectedCustomTest || (activeModule ? MOCK_TEST_DATA[activeModule] : null);
+    const currentModuleData = selectedCustomTest;
 
     if (user && activeModule && currentModuleData) {
       try {
@@ -459,7 +519,7 @@ export default function App() {
   };
 
   const calculateScore = () => {
-    const currentModuleData = selectedCustomTest || (activeModule ? MOCK_TEST_DATA[activeModule] : null);
+    const currentModuleData = selectedCustomTest;
     if (!currentModuleData) return { score: 0, total: 0 };
     
     let score = 0;
@@ -738,6 +798,10 @@ export default function App() {
   }
 
   if (view === 'instructor') {
+    if (!isAdmin(user?.email)) {
+      setView('landing');
+      return null;
+    }
     return (
       <div className="h-screen flex flex-col bg-white overflow-hidden">
         <header className="h-16 border-b border-slate-200 px-8 flex items-center justify-between bg-white">
@@ -760,7 +824,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        <InstructorPanel />
+        <InstructorPanel user={user} />
       </div>
     );
   }
@@ -776,7 +840,7 @@ export default function App() {
             <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Mock Master</span>
           </div>
           <div className="flex items-center gap-6">
-            {user && (
+            {user && isAdmin(user.email) && (
               <button 
                 onClick={() => setView('instructor')}
                 className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-sm transition-colors"
@@ -984,149 +1048,236 @@ export default function App() {
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
-            {[
-              { id: 'listening', icon: <Headphones />, title: 'Listening', color: 'bg-blue-600', desc: '30 mins • 40 questions' },
-              { id: 'reading', icon: <BookOpen />, title: 'Reading', color: 'bg-emerald-600', desc: '60 mins • 40 questions' },
-              { id: 'writing', icon: <PenTool />, title: 'Writing', color: 'bg-amber-600', desc: '60 mins • 2 tasks' },
-              { id: 'speaking', icon: <Mic />, title: 'Speaking', color: 'bg-rose-600', desc: '15 mins • 3 parts' },
-            ].map((module, idx) => (
-              <motion.button
-                key={module.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.1 }}
-                whileHover={{ y: -8, scale: 1.02 }}
-                onClick={() => startTest(module.id as any)}
-                className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 text-left flex flex-col gap-6 hover:shadow-xl transition-all group"
-              >
-                <div className={`${module.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg transform group-hover:rotate-6 transition-transform`}>
-                  {module.icon}
-                </div>
-                <div>
-                  <h3 className="font-bold text-2xl text-slate-800 mb-1">{module.title}</h3>
-                  <p className="text-sm font-medium text-slate-400">{module.desc}</p>
-                </div>
-                <div className="mt-auto flex items-center text-ielts-blue font-bold text-sm group-hover:gap-3 transition-all">
-                  Start Practice <ChevronRight size={18} />
-                </div>
-              </motion.button>
-            ))}
-          </div>
-
-          {user && readingTests.length > 0 && (
+          {user && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-16"
+              className="mb-16 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm"
             >
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h3 className="text-2xl font-black text-slate-900">Custom Reading Tests</h3>
-                  <p className="text-slate-500 font-medium">Tests created by your instructors</p>
+                  <h3 className="text-2xl font-black text-slate-900">Practice Goals</h3>
+                  <p className="text-slate-500 font-medium">Set your IELTS practice targets</p>
+                </div>
+                <div className="bg-blue-50 px-4 py-2 rounded-xl text-blue-600 font-bold text-sm">
+                  {practiceTasks.filter(t => !t.completed).length} Pending
                 </div>
               </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {readingTests.map(test => (
-                  <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
-                    <div className="flex items-center justify-between">
-                      <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
-                        <BookOpen size={20} />
+
+              <form onSubmit={handleAddTask} className="flex flex-wrap gap-4 mb-8">
+                <input 
+                  required
+                  type="text" 
+                  value={newTaskTitle}
+                  onChange={e => setNewTaskTitle(e.target.value)}
+                  placeholder="e.g. Complete 2 Reading Passages"
+                  className="flex-1 min-w-[200px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-all font-medium"
+                />
+                <input 
+                  required
+                  type="date" 
+                  value={newTaskDueDate}
+                  onChange={e => setNewTaskDueDate(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-all font-medium"
+                />
+                <button 
+                  disabled={isAddingTask}
+                  type="submit"
+                  className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+                >
+                  Add Task
+                </button>
+              </form>
+
+              <div className="grid gap-3">
+                {practiceTasks.map(task => (
+                  <div key={task.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group">
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => toggleTask(task.id, task.completed)}
+                        className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${task.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 bg-white'}`}
+                      >
+                        {task.completed && <CheckCircle size={14} />}
+                      </button>
+                      <div>
+                        <p className={`font-bold ${task.completed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{task.title}</p>
+                        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
+                          <Clock size={10} /> Due: {task.dueDate}
+                        </div>
                       </div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reading</span>
-                    </div>
-                    <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
-                    <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
-                      <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
                     </div>
                     <button 
-                      onClick={() => startTest('reading', test)}
-                      className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+                      onClick={() => deleteTask(task.id)}
+                      className="text-slate-300 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
                     >
-                      Start Test
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 ))}
+                {practiceTasks.length === 0 && (
+                  <div className="text-center py-8 text-slate-400 font-medium italic">
+                    No practice goals set yet. Start by adding one above!
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
 
-          {user && listeningTests.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-16"
-            >
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h3 className="text-2xl font-black text-slate-900">Custom Listening Tests</h3>
-                  <p className="text-slate-500 font-medium">Tests created by your instructors</p>
-                </div>
-              </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {listeningTests.map(test => (
-                  <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
-                    <div className="flex items-center justify-between">
-                      <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
-                        <Headphones size={20} />
-                      </div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listening</span>
+          {user && (
+            <div className="space-y-16">
+              {readingTests.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="flex items-center justify-between mb-8">
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-900">Reading Tests</h3>
+                      <p className="text-slate-500 font-medium">Available practice tests for Reading module</p>
                     </div>
-                    <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
-                    <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
-                      <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
-                    </div>
-                    <button 
-                      onClick={() => startTest('listening', test)}
-                      className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
-                    >
-                      Start Test
-                    </button>
                   </div>
-                ))}
-              </div>
-            </motion.div>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {readingTests.map(test => (
+                      <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
+                        <div className="flex items-center justify-between">
+                          <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
+                            <BookOpen size={20} />
+                          </div>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reading</span>
+                        </div>
+                        <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
+                        <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
+                          <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
+                        </div>
+                        <button 
+                          onClick={() => startTest('reading', test)}
+                          className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+                        >
+                          Start Test
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {listeningTests.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="flex items-center justify-between mb-8">
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-900">Listening Tests</h3>
+                      <p className="text-slate-500 font-medium">Available practice tests for Listening module</p>
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {listeningTests.map(test => (
+                      <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
+                        <div className="flex items-center justify-between">
+                          <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
+                            <Headphones size={20} />
+                          </div>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listening</span>
+                        </div>
+                        <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
+                        <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
+                          <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
+                        </div>
+                        <button 
+                          onClick={() => startTest('listening', test)}
+                          className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+                        >
+                          Start Test
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {writingTests.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="flex items-center justify-between mb-8">
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-900">Writing Tests</h3>
+                      <p className="text-slate-500 font-medium">Available practice tests for Writing module</p>
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {writingTests.map(test => (
+                      <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
+                        <div className="flex items-center justify-between">
+                          <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
+                            <PenTool size={20} />
+                          </div>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Writing</span>
+                        </div>
+                        <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
+                        <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
+                          <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
+                          <div className="flex items-center gap-1"><FileText size={12} /> 2 Tasks</div>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            setSelectedWritingTest(test);
+                            startTest('writing', {
+                              id: test.id,
+                              title: test.title,
+                              type: 'writing',
+                              duration: test.duration,
+                              sections: [
+                                { id: 'ws1', title: 'Task 1', instruction: 'Task 1', content: test.task1Prompt, questions: [] },
+                                { id: 'ws2', title: 'Task 2', instruction: 'Task 2', content: test.task2Prompt, questions: [] }
+                              ]
+                            });
+                          }}
+                          className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+                        >
+                          Start Test
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </div>
           )}
 
-          {user && writingTests.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-16"
-            >
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h3 className="text-2xl font-black text-slate-900">Custom Writing Tests</h3>
-                  <p className="text-slate-500 font-medium">Tests created by your instructors</p>
-                </div>
-              </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {writingTests.map(test => (
-                  <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
-                    <div className="flex items-center justify-between">
-                      <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
-                        <PenTool size={20} />
-                      </div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Writing</span>
-                    </div>
-                    <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
-                    <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
-                      <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
-                      <div className="flex items-center gap-1"><FileText size={12} /> 2 Tasks</div>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        setSelectedWritingTest(test);
-                        startTest('writing');
-                      }}
-                      className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
-                    >
-                      Start Test
-                    </button>
+          {!user && (
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
+              {[
+                { id: 'listening', icon: <Headphones />, title: 'Listening', color: 'bg-blue-600', desc: '30 mins • 40 questions' },
+                { id: 'reading', icon: <BookOpen />, title: 'Reading', color: 'bg-emerald-600', desc: '60 mins • 40 questions' },
+                { id: 'writing', icon: <PenTool />, title: 'Writing', color: 'bg-amber-600', desc: '60 mins • 2 tasks' },
+                { id: 'speaking', icon: <Mic />, title: 'Speaking', color: 'bg-rose-600', desc: '15 mins • 3 parts' },
+              ].map((module, idx) => (
+                <motion.button
+                  key={module.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.1 }}
+                  whileHover={{ y: -8, scale: 1.02 }}
+                  onClick={() => setShowAuthModal(true)}
+                  className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 text-left flex flex-col gap-6 hover:shadow-xl transition-all group"
+                >
+                  <div className={`${module.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg transform group-hover:rotate-6 transition-transform`}>
+                    {module.icon}
                   </div>
-                ))}
-              </div>
-            </motion.div>
+                  <div>
+                    <h3 className="font-bold text-2xl text-slate-800 mb-1">{module.title}</h3>
+                    <p className="text-sm font-medium text-slate-400">{module.desc}</p>
+                  </div>
+                  <div className="mt-auto flex items-center text-ielts-blue font-bold text-sm group-hover:gap-3 transition-all">
+                    Sign in to Start <ChevronRight size={18} />
+                  </div>
+                </motion.button>
+              ))}
+            </div>
           )}
 
           {user && userResults.length > 0 && (
@@ -1190,7 +1341,11 @@ export default function App() {
   }
 
   if (view === 'instructions') {
-    const module = selectedCustomTest || MOCK_TEST_DATA[activeModule!];
+    const module = selectedCustomTest;
+    if (!module) {
+      setView('landing');
+      return null;
+    }
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8">
         <motion.div 
@@ -1225,7 +1380,11 @@ export default function App() {
   }
 
   if (view === 'test') {
-    const module = selectedCustomTest || MOCK_TEST_DATA[activeModule!];
+    const module = selectedCustomTest;
+    if (!module) {
+      setView('landing');
+      return null;
+    }
     const section = module.sections[currentSectionIndex];
 
     return (
