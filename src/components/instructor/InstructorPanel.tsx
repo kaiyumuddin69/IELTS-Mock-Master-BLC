@@ -16,7 +16,9 @@ import {
   Headphones,
   BookOpen,
   Layout,
-  Mic
+  Mic,
+  RefreshCw,
+  Star
 } from 'lucide-react';
 import { db } from '../../services/firebase';
 import { 
@@ -38,12 +40,15 @@ import { User } from 'firebase/auth';
 import { GoogleGenAI } from "@google/genai";
 
 export default function InstructorPanel({ user }: { user: User | null }) {
-  const [activeTab, setActiveTab] = useState<'writing' | 'reading' | 'listening' | 'submissions'>('writing');
+  const [activeTab, setActiveTab] = useState<'overview' | 'writing' | 'reading' | 'listening' | 'speaking' | 'submissions'>('overview');
   const [writingTests, setWritingTests] = useState<WritingTest[]>([]);
   const [readingTests, setReadingTests] = useState<TestModule[]>([]);
   const [listeningTests, setListeningTests] = useState<TestModule[]>([]);
+  const [speakingTests, setSpeakingTests] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<WritingSubmission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [markingSubmission, setMarkingSubmission] = useState<WritingSubmission | null>(null);
 
@@ -69,8 +74,10 @@ export default function InstructorPanel({ user }: { user: User | null }) {
   const [score, setScore] = useState(0);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (user && isAdmin(user.email)) {
+      fetchData();
+    }
+  }, [user]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -78,11 +85,13 @@ export default function InstructorPanel({ user }: { user: User | null }) {
       const writingSnap = await getDocs(query(collection(db, 'writing_tests'), orderBy('createdAt', 'desc')));
       const readingSnap = await getDocs(query(collection(db, 'reading_tests'), orderBy('createdAt', 'desc')));
       const listeningSnap = await getDocs(query(collection(db, 'listening_tests'), orderBy('createdAt', 'desc')));
+      const speakingSnap = await getDocs(query(collection(db, 'speaking_tests'), orderBy('createdAt', 'desc')));
       const submissionsSnap = await getDocs(query(collection(db, 'writing_submissions'), orderBy('submittedAt', 'desc')));
       
       setWritingTests(writingSnap.docs.map(d => ({ id: d.id, ...d.data() } as WritingTest)));
       setReadingTests(readingSnap.docs.map(d => ({ id: d.id, ...d.data() } as TestModule)));
       setListeningTests(listeningSnap.docs.map(d => ({ id: d.id, ...d.data() } as TestModule)));
+      setSpeakingTests(speakingSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)));
       setSubmissions(submissionsSnap.docs.map(d => ({ id: d.id, ...d.data() } as WritingSubmission)));
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -111,41 +120,130 @@ export default function InstructorPanel({ user }: { user: User | null }) {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleSeedData = async () => {
-    if (!confirm("This will populate the database with sample tests. Continue?")) return;
+    if (!confirm("This will populate the database with the complete IELTS test data you provided. Continue?")) return;
     setIsSeeding(true);
     try {
-      // Seed Writing Test
-      await addDoc(collection(db, 'writing_tests'), {
-        title: 'Academic Writing Practice 1',
-        duration: 60,
-        task1Prompt: 'The table below shows the number of cars made in Argentina, Australia and Thailand from 2003 to 2009. Summarise the information by selecting and reporting the main features.',
-        task2Prompt: 'The animal species are becoming extinct due to human activities on land and in sea. What are the reasons and solutions?',
+      // 1. Seed Listening Test (from HTML)
+      await addDoc(collection(db, 'listening_tests'), {
+        title: 'IELTS Listening - Removal Booking & Guitars',
+        duration: 30,
         createdAt: serverTimestamp(),
-        createdBy: user?.uid
-      });
-
-      // Seed Reading Test
-      await addDoc(collection(db, 'reading_tests'), {
-        title: 'Reading Practice Test 1',
-        type: 'reading',
-        duration: 60,
+        createdBy: user?.uid,
         sections: [
           {
-            id: 'rs1',
-            title: 'Reading Part 1',
-            instruction: 'Read the passage and answer questions 1-5.',
-            content: '<h2>Katherine Mansfield</h2><p>Katherine Mansfield was a modernist writer of short fiction...</p>',
+            id: 'part1',
+            title: 'Part 1: Removal Booking Confirmation',
+            instruction: 'Write NO MORE THAN TWO WORDS AND/OR NUMBERS for each answer.',
+            content: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
             questions: [
-              { id: '1', type: 'tfng', question: 'The name Katherine Mansfield was her original name.', options: ['TRUE', 'FALSE', 'NOT GIVEN'], correctAnswer: 'FALSE' },
-              { id: '2', type: 'tfng', question: 'How Pearl Button Was Kidnapped portrayed Maori people in a favorable way.', options: ['TRUE', 'FALSE', 'NOT GIVEN'], correctAnswer: 'TRUE' }
+              { id: '1', type: 'fill-in-the-blanks', text: 'Contact phone number is (1)' },
+              { id: '2', type: 'fill-in-the-blanks', text: 'collect from 119 (2) Hamilton, Waikato' },
+              { id: '3', type: 'fill-in-the-blanks', text: 'Ship to 2096 (3) Edmonton, Alberta' },
+              { id: '4', type: 'fill-in-the-blanks', text: 'Prepare for shipment on (4), January the 9th' },
+              { id: '5', type: 'fill-in-the-blanks', text: 'Tidy up the collection site by 9 AM on (5), January the 12th' },
+              { id: '6', type: 'fill-in-the-blanks', text: 'Store before shipment for (6) months' },
+              { id: '7', type: 'matching', text: '7. clothes', options: ['readily accessible', 'personal objects', 'precious items'] },
+              { id: '8', type: 'matching', text: '8. coffee maker', options: ['readily accessible', 'personal objects', 'precious items'] },
+              { id: '9', type: 'matching', text: '9. family photos', options: ['readily accessible', 'personal objects', 'precious items'] },
+              { id: '10', type: 'matching', text: '10. computers', options: ['readily accessible', 'personal objects', 'precious items'] }
+            ]
+          },
+          {
+            id: 'part2',
+            title: 'Part 2: Types of Guitars',
+            instruction: 'Write NO MORE THAN TWO WORDS for each answer.',
+            content: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+            questions: [
+              { id: '11', type: 'fill-in-the-blanks', text: 'Suitable for (11)' },
+              { id: '12', type: 'fill-in-the-blanks', text: 'Positioned (12) the lap of the guitar player' },
+              { id: '13', type: 'fill-in-the-blanks', text: 'Played by (13)' },
+              { id: '14', type: 'fill-in-the-blanks', text: 'support the (14)' },
+              { id: '15', type: 'fill-in-the-blanks', text: 'purchased by (15) due to their affordable prices' },
+              { id: '16', type: 'fill-in-the-blanks', text: 'popular with (16)' },
+              { id: '19', type: 'multiple-choice', text: 'What is the reason given for the increasing sales of acoustic guitars?', options: ['A. Acoustic guitars are used more by pop stars', 'B. Acoustic guitars are used widely in country music', 'C. More people choose acoustic guitars over six-string guitars'] },
+              { id: '20', type: 'multiple-choice', text: 'Education has great potential to increase guitar sales because', options: ['A. 50 percent of new buyers are female artists', 'B. half the guitars every year are bought by first-time players', 'C. long-term guitar users tend to spend a lot of money'] }
             ]
           }
-        ],
-        createdAt: serverTimestamp(),
-        createdBy: user?.uid
+        ]
       });
 
-      alert("Seed data added successfully!");
+      // 2. Seed Reading Test (from HTML)
+      await addDoc(collection(db, 'reading_tests'), {
+        title: 'IELTS Reading - History of Woodlands & Succession',
+        duration: 60,
+        createdAt: serverTimestamp(),
+        createdBy: user?.uid,
+        sections: [
+          {
+            id: 'part1',
+            title: 'Part 1: The History of Woodlands in Britain',
+            instruction: 'Choose TRUE, FALSE or NOT GIVEN.',
+            content: `
+              <p>The climate in Britain has been arctic for the last several million years, punctuated by relatively warm timespans, or interglacials of thousands of years, one of which we are in as of now. Since the last glaciation, British woodland history is considered quite short in terms of geological time spans, and is also closely related to the human civilization developing.</p>
+              <p>At the peak of the last glaciation (100,000 – 12,000 BC), the majority of Britain would have had no trees. Birch and willow scrub may have grown along the lower reaches of the ice, with pine in some areas.</p>
+            `,
+            questions: [
+              { id: '1', type: 'tfng', text: 'An understanding of Britain’s pre-glacial flora’s development has been deduced from studies of pollen and seed deposits in peat.', options: ['TRUE', 'FALSE', 'NOT GIVEN'] },
+              { id: '2', type: 'tfng', text: 'Various species of wildwood types began growing in Britain in around the year 8500 BC.', options: ['TRUE', 'FALSE', 'NOT GIVEN'] },
+              { id: '3', type: 'tfng', text: 'Beech and lime did not spread beyond southern Britain.', options: ['TRUE', 'FALSE', 'NOT GIVEN'] },
+              { id: '10', type: 'matching', text: 'Every type of wood in England belonged to some person or some community.', options: ['A. The Palaeolithic era', 'B. The Bronze age', 'C. The Iron age', 'D. The Medieval era', 'E. The Mesolithic age', 'F. Roman times'] }
+            ]
+          }
+        ]
+      });
+
+      // 3. Seed Writing Test (from HTML)
+      await addDoc(collection(db, 'writing_tests'), {
+        title: 'IELTS Writing - UK Issues & Death Penalty',
+        duration: 60,
+        createdAt: serverTimestamp(),
+        createdBy: user?.uid,
+        task1Prompt: 'The chart below gives some of the most reported issues among people living in UK cities in 2008 (%). Summarise the information by selecting and reporting the main features, and make comparisons where relevant.',
+        task2Prompt: 'Some people advocate the death penalty for those who committed violent crimes. Others say that capital punishment is unacceptable in contemporary society. Describe the advantages and disadvantages of the death penalty and give your opinion.',
+        task1Image: 'https://picsum.photos/seed/ielts-chart/800/400'
+      });
+
+      // 4. Seed Speaking Test (from HTML)
+      await addDoc(collection(db, 'speaking_tests'), {
+        title: 'IELTS Speaking Practice Test 1',
+        duration: 15,
+        createdAt: serverTimestamp(),
+        createdBy: user?.uid,
+        parts: [
+          {
+            id: 'part1',
+            title: 'Part 1: Introduction and Interview',
+            instruction: 'The examiner asks the candidate about him/herself, his/her home, work or studies and other familiar topics.',
+            questions: [
+              'What is your full name?',
+              'Can I see your ID?',
+              'Where are you from?',
+              'Do you work or are you a student?',
+              'What do you like about your job/studies?'
+            ]
+          },
+          {
+            id: 'part2',
+            title: 'Part 2: Individual Long Turn (Cue Card)',
+            instruction: 'The candidate is given a task card and has 1 minute to prepare a talk of 1-2 minutes.',
+            content: 'Describe a place you have visited that you would like to go back to. You should say: where it is, when you went there, what you did there, and explain why you would like to go back there.',
+            questions: []
+          },
+          {
+            id: 'part3',
+            title: 'Part 3: Two-way Discussion',
+            instruction: 'The examiner and the candidate discuss issues related to the topic in Part 2 in a more general and abstract way.',
+            questions: [
+              'Why do people like to travel to different places?',
+              'Do you think it is better to travel alone or with others?',
+              'How has the way people travel changed in recent years?',
+              'What are the advantages and disadvantages of tourism for a country?'
+            ]
+          }
+        ]
+      });
+
+      alert("Complete IELTS test data seeded successfully!");
       fetchData();
     } catch (e) {
       console.error("Error seeding data", e);
@@ -208,7 +306,7 @@ export default function InstructorPanel({ user }: { user: User | null }) {
     if (password !== 'DELETE') return;
 
     try {
-      const collections = ['writing_tests', 'reading_tests', 'listening_tests', 'writing_submissions', 'results'];
+      const collections = ['writing_tests', 'reading_tests', 'listening_tests', 'speaking_tests', 'writing_submissions', 'results'];
       for (const colName of collections) {
         const snap = await getDocs(collection(db, colName));
         for (const docItem of snap.docs) {
@@ -282,9 +380,11 @@ export default function InstructorPanel({ user }: { user: User | null }) {
     }
   };
 
-  const handleDeleteTest = async (id: string, type: 'writing' | 'reading' | 'listening') => {
+  const handleDeleteTest = async (id: string, type: 'writing' | 'reading' | 'listening' | 'speaking') => {
     if (!confirm('Are you sure you want to delete this test?')) return;
-    const collectionName = type === 'writing' ? 'writing_tests' : type === 'reading' ? 'reading_tests' : 'listening_tests';
+    const collectionName = type === 'writing' ? 'writing_tests' : 
+                          type === 'reading' ? 'reading_tests' : 
+                          type === 'listening' ? 'listening_tests' : 'speaking_tests';
     try {
       await deleteDoc(doc(db, collectionName, id));
       fetchData();
@@ -313,85 +413,103 @@ export default function InstructorPanel({ user }: { user: User | null }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-50 overflow-hidden">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-8 py-6">
-        <div className="flex items-center justify-between max-w-7xl mx-auto w-full">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900">Instructor Management</h1>
-            <p className="text-slate-500 font-medium">Manage tests and track student progress</p>
+    <div className="min-h-screen bg-[#F8FAFC] flex w-full">
+      {/* Sidebar */}
+      <div className="w-72 bg-white border-r border-slate-200 flex flex-col shrink-0">
+        <div className="p-8">
+          <div className="text-2xl font-black text-ielts-blue tracking-tighter flex items-center gap-2">
+            <div className="w-8 h-8 bg-ielts-blue rounded-lg flex items-center justify-center text-white text-sm">A</div>
+            ADMIN
           </div>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={handleClearAllData}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold text-sm hover:bg-red-100 transition-all"
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-2">IELTS Management</p>
+        </div>
+
+        <nav className="flex-1 px-4 space-y-1">
+          {[
+            { id: 'overview', label: 'Overview', icon: Layout },
+            { id: 'writing', label: 'Writing Tests', icon: PenTool },
+            { id: 'reading', label: 'Reading Tests', icon: BookOpen },
+            { id: 'listening', label: 'Listening Tests', icon: Headphones },
+            { id: 'speaking', label: 'Speaking Tests', icon: Mic },
+            { id: 'submissions', label: 'Submissions', icon: CheckCircle },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                activeTab === tab.id 
+                  ? 'bg-ielts-blue text-white shadow-lg shadow-blue-100' 
+                  : 'text-slate-500 hover:bg-slate-50'
+              }`}
             >
-              <X size={18} />
-              Clear All Data
+              <tab.icon size={18} />
+              {tab.label}
             </button>
-            <button 
-              onClick={handleSeedData}
-              disabled={isSeeding}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-all disabled:opacity-50"
-            >
-              <Layout size={18} />
-              {isSeeding ? 'Seeding...' : 'Seed Demo Data'}
-            </button>
-            <button 
-              onClick={handleAIGenerate}
-              disabled={isGenerating}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-xl font-bold text-sm hover:bg-purple-100 transition-all disabled:opacity-50"
-            >
-              <Mic size={18} />
-              {isGenerating ? 'Generating...' : 'AI Generate'}
+          ))}
+        </nav>
+
+        <div className="p-6 border-t border-slate-100 space-y-2">
+          <button 
+            onClick={handleSeedData}
+            disabled={isSeeding}
+            className="w-full py-3 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
+          >
+            <Plus size={14} /> {isSeeding ? 'Seeding...' : 'Seed Sample Test'}
+          </button>
+          <button 
+            onClick={handleClearAllData}
+            className="w-full py-3 bg-red-50 text-red-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+          >
+            <Trash2 size={14} /> Clear All Data
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto p-12">
+        <header className="flex justify-between items-end mb-12">
+          <div>
+            <h1 className="text-4xl font-black text-slate-900 capitalize">{activeTab}</h1>
+            <p className="text-slate-500 font-medium mt-1">Manage your IELTS examination modules and student data.</p>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={fetchData} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all">
+              <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
             </button>
             <button 
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+              className="px-6 py-3 bg-ielts-blue text-white rounded-xl font-black text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center gap-2"
             >
-              <Plus size={20} />
-              Create New Test
+              <Plus size={18} /> Create New
             </button>
           </div>
-        </div>
-      </div>
+        </header>
 
-      {/* Tabs */}
-      <div className="bg-white border-b border-slate-200 px-8">
-        <div className="flex items-center gap-8 max-w-7xl mx-auto w-full">
-          <button 
-            onClick={() => setActiveTab('writing')}
-            className={`py-4 px-2 font-bold text-sm transition-all relative ${activeTab === 'writing' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            Writing
-            {activeTab === 'writing' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-full" />}
-          </button>
-          <button 
-            onClick={() => setActiveTab('reading')}
-            className={`py-4 px-2 font-bold text-sm transition-all relative ${activeTab === 'reading' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            Reading
-            {activeTab === 'reading' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-full" />}
-          </button>
-          <button 
-            onClick={() => setActiveTab('listening')}
-            className={`py-4 px-2 font-bold text-sm transition-all relative ${activeTab === 'listening' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            Listening
-            {activeTab === 'listening' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-full" />}
-          </button>
-          <button 
-            onClick={() => setActiveTab('submissions')}
-            className={`py-4 px-2 font-bold text-sm transition-all relative ${activeTab === 'submissions' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            Submissions
-            {activeTab === 'submissions' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-full" />}
-          </button>
-        </div>
-      </div>
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-4 gap-6 mb-12">
+            {[
+              { label: 'Total Tests', value: writingTests.length + readingTests.length + listeningTests.length + speakingTests.length, icon: BookOpen, color: 'bg-blue-500' },
+              { label: 'Submissions', value: submissions.length, icon: CheckCircle, color: 'bg-emerald-500' },
+              { label: 'Active Students', value: '124', icon: Users, color: 'bg-amber-500' },
+              { label: 'Avg. Band', value: '6.5', icon: Star, color: 'bg-rose-500' },
+            ].map((stat, i) => (
+              <motion.div 
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm"
+              >
+                <div className={`w-12 h-12 ${stat.color} rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg`}>
+                  <stat.icon size={24} />
+                </div>
+                <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">{stat.label}</div>
+                <div className="text-3xl font-black text-slate-900">{stat.value}</div>
+              </motion.div>
+            ))}
+          </div>
+        )}
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-7xl mx-auto w-full">
           {activeTab === 'writing' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -457,6 +575,33 @@ export default function InstructorPanel({ user }: { user: User | null }) {
                     </div>
                     <button 
                       onClick={() => handleDeleteTest(test.id, 'listening')}
+                      className="text-slate-300 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">{test.title}</h3>
+                  <div className="flex items-center gap-4 text-slate-500 text-sm font-medium mb-6">
+                    <div className="flex items-center gap-1">
+                      <Clock size={14} />
+                      {test.duration} mins
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'speaking' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {speakingTests.map(test => (
+                <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="bg-rose-50 p-3 rounded-xl text-rose-600">
+                      <Mic size={24} />
+                    </div>
+                    <button 
+                      onClick={() => handleDeleteTest(test.id, 'speaking')}
                       className="text-slate-300 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={18} />

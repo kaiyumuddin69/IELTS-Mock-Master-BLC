@@ -37,7 +37,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MOCK_TEST_DATA, TestModule, Question, Section, WritingTest, WritingSubmission } from './types';
 import { auth, db, isAdmin } from './services/firebase';
 import ListeningTest from './components/listening/ListeningTest';
+import ReadingTest from './components/reading/ReadingTest';
 import InstructorPanel from './components/instructor/InstructorPanel';
+import StudentDashboard from './components/student/StudentDashboard';
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
@@ -291,20 +293,26 @@ export default function App() {
   const [writingTests, setWritingTests] = useState<WritingTest[]>([]);
   const [readingTests, setReadingTests] = useState<TestModule[]>([]);
   const [listeningTests, setListeningTests] = useState<TestModule[]>([]);
+  const [speakingTests, setSpeakingTests] = useState<any[]>([]);
   const [selectedWritingTest, setSelectedWritingTest] = useState<WritingTest | null>(null);
   const [selectedCustomTest, setSelectedCustomTest] = useState<TestModule | null>(null);
 
   const fetchTests = async () => {
+    if (!db) return;
     try {
       const writingSnap = await getDocs(query(collection(db, 'writing_tests'), orderBy('createdAt', 'desc')));
       const readingSnap = await getDocs(query(collection(db, 'reading_tests'), orderBy('createdAt', 'desc')));
       const listeningSnap = await getDocs(query(collection(db, 'listening_tests'), orderBy('createdAt', 'desc')));
+      const speakingSnap = await getDocs(query(collection(db, 'speaking_tests'), orderBy('createdAt', 'desc')));
       
       setWritingTests(writingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as WritingTest)));
       setReadingTests(readingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TestModule)));
       setListeningTests(listeningSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TestModule)));
-    } catch (e) {
-      console.error("Error fetching tests", e);
+      setSpeakingTests(speakingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
+    } catch (e: any) {
+      if (e.code !== 'permission-denied') {
+        console.error("Error fetching tests", e);
+      }
     }
   };
 
@@ -315,6 +323,7 @@ export default function App() {
   }, [user]);
 
   const fetchUserResults = async (userId: string) => {
+    if (!db || !userId) return;
     try {
       const q = query(
         collection(db, 'results'),
@@ -325,16 +334,20 @@ export default function App() {
       const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setUserResults(results);
 
-      // Fetch practice tasks
+      // Fetch practice tasks (Sort on client to avoid index requirement)
       const tasksQuery = query(
         collection(db, 'practice_tasks'), 
-        where('userId', '==', userId), 
-        orderBy('createdAt', 'desc')
+        where('userId', '==', userId)
       );
       const tasksSnap = await getDocs(tasksQuery);
-      setPracticeTasks(tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    } catch (e) {
-      console.error("Error fetching user data", e);
+      const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Client-side sort by createdAt desc
+      tasks.sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setPracticeTasks(tasks);
+    } catch (e: any) {
+      if (e.code !== 'permission-denied') {
+        console.error("Error fetching user data", e);
+      }
     }
   };
   
@@ -480,7 +493,6 @@ export default function App() {
     if (user && activeModule && currentModuleData) {
       try {
         if (activeModule === 'writing' && selectedWritingTest) {
-          // Special handling for Writing Submissions
           const submissionRef = collection(db, 'writing_submissions');
           await addDoc(submissionRef, {
             testId: selectedWritingTest.id,
@@ -492,6 +504,16 @@ export default function App() {
             task2Answer: answers[`writing_ws2`] || '',
             status: 'pending',
             submittedAt: serverTimestamp()
+          });
+        } else if (activeModule === 'speaking') {
+          const resultRef = collection(db, 'results');
+          await addDoc(resultRef, {
+            userId: user.uid,
+            userEmail: user.email,
+            testId: currentModuleData.id,
+            module: 'speaking',
+            status: 'completed',
+            timestamp: serverTimestamp()
           });
         } else {
           const testId = currentModuleData.id;
@@ -1032,308 +1054,68 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        <main className="flex-1 max-w-6xl mx-auto w-full p-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-12 text-center"
-          >
-            <h2 className="text-5xl font-extrabold text-slate-900 mb-4 tracking-tight">
-              {user ? `Welcome back, ${user.displayName?.split(' ')[0] || 'Candidate'}` : 'Master Your IELTS Journey'}
-            </h2>
-            <p className="text-slate-500 text-xl max-w-2xl mx-auto leading-relaxed">
-              {user 
-                ? "Ready to continue your practice? Pick a module below to start improving your score."
-                : "Experience the most authentic computer-delivered IELTS environment with real-time feedback."}
-            </p>
-          </motion.div>
-
-          {user && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-16 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm"
-            >
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h3 className="text-2xl font-black text-slate-900">Practice Goals</h3>
-                  <p className="text-slate-500 font-medium">Set your IELTS practice targets</p>
-                </div>
-                <div className="bg-blue-50 px-4 py-2 rounded-xl text-blue-600 font-bold text-sm">
-                  {practiceTasks.filter(t => !t.completed).length} Pending
-                </div>
-              </div>
-
-              <form onSubmit={handleAddTask} className="flex flex-wrap gap-4 mb-8">
-                <input 
-                  required
-                  type="text" 
-                  value={newTaskTitle}
-                  onChange={e => setNewTaskTitle(e.target.value)}
-                  placeholder="e.g. Complete 2 Reading Passages"
-                  className="flex-1 min-w-[200px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-all font-medium"
-                />
-                <input 
-                  required
-                  type="date" 
-                  value={newTaskDueDate}
-                  onChange={e => setNewTaskDueDate(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-all font-medium"
-                />
-                <button 
-                  disabled={isAddingTask}
-                  type="submit"
-                  className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
-                >
-                  Add Task
-                </button>
-              </form>
-
-              <div className="grid gap-3">
-                {practiceTasks.map(task => (
-                  <div key={task.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group">
-                    <div className="flex items-center gap-4">
-                      <button 
-                        onClick={() => toggleTask(task.id, task.completed)}
-                        className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${task.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 bg-white'}`}
-                      >
-                        {task.completed && <CheckCircle size={14} />}
-                      </button>
-                      <div>
-                        <p className={`font-bold ${task.completed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{task.title}</p>
-                        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
-                          <Clock size={10} /> Due: {task.dueDate}
-                        </div>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => deleteTask(task.id)}
-                      className="text-slate-300 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                ))}
-                {practiceTasks.length === 0 && (
-                  <div className="text-center py-8 text-slate-400 font-medium italic">
-                    No practice goals set yet. Start by adding one above!
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-
-          {user && (
-            <div className="space-y-16">
-              {readingTests.length > 0 && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <div className="flex items-center justify-between mb-8">
-                    <div>
-                      <h3 className="text-2xl font-black text-slate-900">Reading Tests</h3>
-                      <p className="text-slate-500 font-medium">Available practice tests for Reading module</p>
-                    </div>
-                  </div>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {readingTests.map(test => (
-                      <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
-                        <div className="flex items-center justify-between">
-                          <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
-                            <BookOpen size={20} />
-                          </div>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reading</span>
-                        </div>
-                        <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
-                        <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
-                          <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
-                        </div>
-                        <button 
-                          onClick={() => startTest('reading', test)}
-                          className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
-                        >
-                          Start Test
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-
-              {listeningTests.length > 0 && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <div className="flex items-center justify-between mb-8">
-                    <div>
-                      <h3 className="text-2xl font-black text-slate-900">Listening Tests</h3>
-                      <p className="text-slate-500 font-medium">Available practice tests for Listening module</p>
-                    </div>
-                  </div>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {listeningTests.map(test => (
-                      <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
-                        <div className="flex items-center justify-between">
-                          <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
-                            <Headphones size={20} />
-                          </div>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listening</span>
-                        </div>
-                        <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
-                        <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
-                          <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
-                        </div>
-                        <button 
-                          onClick={() => startTest('listening', test)}
-                          className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
-                        >
-                          Start Test
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-
-              {writingTests.length > 0 && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <div className="flex items-center justify-between mb-8">
-                    <div>
-                      <h3 className="text-2xl font-black text-slate-900">Writing Tests</h3>
-                      <p className="text-slate-500 font-medium">Available practice tests for Writing module</p>
-                    </div>
-                  </div>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {writingTests.map(test => (
-                      <div key={test.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
-                        <div className="flex items-center justify-between">
-                          <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
-                            <PenTool size={20} />
-                          </div>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Writing</span>
-                        </div>
-                        <h4 className="font-bold text-lg text-slate-800">{test.title}</h4>
-                        <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
-                          <div className="flex items-center gap-1"><Clock size={12} /> {test.duration} mins</div>
-                          <div className="flex items-center gap-1"><FileText size={12} /> 2 Tasks</div>
-                        </div>
-                        <button 
-                          onClick={() => {
-                            setSelectedWritingTest(test);
-                            startTest('writing', {
-                              id: test.id,
-                              title: test.title,
-                              type: 'writing',
-                              duration: test.duration,
-                              sections: [
-                                { id: 'ws1', title: 'Task 1', instruction: 'Task 1', content: test.task1Prompt, questions: [] },
-                                { id: 'ws2', title: 'Task 2', instruction: 'Task 2', content: test.task2Prompt, questions: [] }
-                              ]
-                            });
-                          }}
-                          className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
-                        >
-                          Start Test
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </div>
-          )}
-
-          {!user && (
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
-              {[
-                { id: 'listening', icon: <Headphones />, title: 'Listening', color: 'bg-blue-600', desc: '30 mins • 40 questions' },
-                { id: 'reading', icon: <BookOpen />, title: 'Reading', color: 'bg-emerald-600', desc: '60 mins • 40 questions' },
-                { id: 'writing', icon: <PenTool />, title: 'Writing', color: 'bg-amber-600', desc: '60 mins • 2 tasks' },
-                { id: 'speaking', icon: <Mic />, title: 'Speaking', color: 'bg-rose-600', desc: '15 mins • 3 parts' },
-              ].map((module, idx) => (
-                <motion.button
-                  key={module.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                  whileHover={{ y: -8, scale: 1.02 }}
-                  onClick={() => setShowAuthModal(true)}
-                  className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 text-left flex flex-col gap-6 hover:shadow-xl transition-all group"
-                >
-                  <div className={`${module.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg transform group-hover:rotate-6 transition-transform`}>
-                    {module.icon}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-2xl text-slate-800 mb-1">{module.title}</h3>
-                    <p className="text-sm font-medium text-slate-400">{module.desc}</p>
-                  </div>
-                  <div className="mt-auto flex items-center text-ielts-blue font-bold text-sm group-hover:gap-3 transition-all">
-                    Sign in to Start <ChevronRight size={18} />
-                  </div>
-                </motion.button>
-              ))}
-            </div>
-          )}
-
-          {user && userResults.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mt-12"
-            >
-              <div className="flex items-center justify-between mb-8">
-                <h3 className="text-3xl font-black text-slate-900">Your Practice History</h3>
-                <div className="px-4 py-1.5 bg-ielts-blue/10 text-ielts-blue rounded-full text-xs font-black uppercase tracking-widest">
-                  {userResults.length} Tests Completed
-                </div>
-              </div>
-              <div className="grid gap-4">
-                {userResults.map((res, idx) => (
-                  <motion.div 
-                    key={res.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:border-ielts-blue/30 transition-all"
+        <main className="flex-1 flex flex-col">
+          {user ? (
+            <StudentDashboard 
+              user={user}
+              practiceTasks={practiceTasks}
+              readingTests={readingTests}
+              listeningTests={listeningTests}
+              writingTests={writingTests}
+              speakingTests={speakingTests}
+              newTaskTitle={newTaskTitle}
+              setNewTaskTitle={setNewTaskTitle}
+              newTaskDueDate={newTaskDueDate}
+              setNewTaskDueDate={setNewTaskDueDate}
+              handleAddTask={handleAddTask}
+              toggleTask={toggleTask}
+              deleteTask={deleteTask}
+              isAddingTask={isAddingTask}
+              startTest={startTest}
+            />
+          ) : (
+            <div className="max-w-6xl mx-auto w-full p-8 py-24">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-12 text-center"
+              >
+                <h2 className="text-7xl font-black text-slate-900 mb-8 tracking-tighter leading-[0.9]">
+                  Master Your <br/><span className="text-ielts-blue">IELTS Journey</span>
+                </h2>
+                <p className="text-slate-500 text-2xl max-w-2xl mx-auto leading-relaxed font-medium">
+                  Experience the most authentic computer-delivered IELTS environment with real-time feedback and AI-powered insights.
+                </p>
+                <div className="mt-12 flex justify-center gap-6">
+                  <button 
+                    onClick={() => setShowAuthModal(true)}
+                    className="px-10 py-5 bg-ielts-blue text-white rounded-[24px] font-black text-xl hover:bg-blue-700 transition-all shadow-2xl shadow-blue-200 active:scale-95"
                   >
-                    <div className="flex items-center gap-6">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-md ${
-                        res.module === 'listening' ? 'bg-blue-600' :
-                        res.module === 'reading' ? 'bg-emerald-600' :
-                        res.module === 'writing' ? 'bg-amber-600' : 'bg-rose-600'
-                      }`}>
-                        {res.module === 'listening' ? <Headphones size={20} /> :
-                         res.module === 'reading' ? <BookOpen size={20} /> :
-                         res.module === 'writing' ? <PenTool size={20} /> : <Mic size={20} />}
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-800 capitalize">{res.module} Practice</h4>
-                        <p className="text-xs text-slate-400 font-medium">
-                          {res.timestamp?.toDate ? new Date(res.timestamp.toDate()).toLocaleDateString('en-GB', {
-                            day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                          }) : 'Just now'}
-                        </p>
-                      </div>
+                    Get Started Free
+                  </button>
+                  <button className="px-10 py-5 bg-white border-2 border-slate-100 text-slate-600 rounded-[24px] font-black text-xl hover:bg-slate-50 transition-all active:scale-95">
+                    View Demo
+                  </button>
+                </div>
+              </motion.div>
+
+              {/* Feature Grid */}
+              <div className="grid md:grid-cols-3 gap-8 mt-24">
+                {[
+                  { title: 'Authentic Interface', desc: 'Identical to the real computer-delivered IELTS exam software.', icon: Layout },
+                  { title: 'AI Evaluation', desc: 'Get instant band score estimates for your writing and speaking.', icon: Star },
+                  { title: 'Full Modules', desc: 'Complete practice material for Reading, Listening, Writing, and Speaking.', icon: BookOpen },
+                ].map((f, i) => (
+                  <div key={i} className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-sm">
+                    <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-ielts-blue mb-6">
+                      <f.icon size={28} />
                     </div>
-                    <div className="flex items-center gap-8">
-                      <div className="text-right">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Score</div>
-                        <div className="text-xl font-black text-slate-800">{res.score} / {res.total}</div>
-                      </div>
-                      <div className="text-right min-w-[80px]">
-                        <div className="text-[10px] font-black text-ielts-blue uppercase tracking-widest mb-1">Band</div>
-                        <div className="text-2xl font-black text-ielts-blue">{getBandScore(res.score, res.total).toFixed(1)}</div>
-                      </div>
-                    </div>
-                  </motion.div>
+                    <h4 className="text-2xl font-black text-slate-900 mb-3">{f.title}</h4>
+                    <p className="text-slate-500 font-medium leading-relaxed">{f.desc}</p>
+                  </div>
                 ))}
               </div>
-            </motion.div>
+            </div>
           )}
         </main>
       </div>
@@ -1428,47 +1210,9 @@ export default function App() {
           )}
 
           {activeModule === 'reading' && (
-            <>
-              <div 
-                className="passage-container ielts-scrollbar"
-                style={{ width: `${passageWidth}%` }}
-              >
-                <div className="p-8">
-                  <div className="prose prose-slate max-w-none prose-p:leading-relaxed prose-p:text-slate-600" dangerouslySetInnerHTML={{ __html: section.content }} />
-                </div>
-              </div>
-              <div 
-                className="w-1 bg-slate-300 hover:bg-ielts-blue cursor-col-resize transition-colors z-10 flex items-center justify-center"
-                onMouseDown={(e) => {
-                  const startX = e.clientX;
-                  const startWidth = passageWidth;
-                  const onMouseMove = (moveEvent: MouseEvent) => {
-                    const deltaX = moveEvent.clientX - startX;
-                    const newWidth = startWidth + (deltaX / window.innerWidth) * 100;
-                    setPassageWidth(Math.max(20, Math.min(80, newWidth)));
-                  };
-                  const onMouseUp = () => {
-                    window.removeEventListener('mousemove', onMouseMove);
-                    window.removeEventListener('mouseup', onMouseUp);
-                  };
-                  window.addEventListener('mousemove', onMouseMove);
-                  window.addEventListener('mouseup', onMouseUp);
-                }}
-              >
-                <div className="h-8 w-px bg-slate-400" />
-              </div>
-              <div 
-                className="questions-container ielts-scrollbar !p-0"
-                style={{ width: `${100 - passageWidth}%` }}
-              >
-                <div className="p-8">
-                  <div className="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-xl">
-                    <p className="text-slate-700 text-sm font-medium leading-relaxed">{section.instruction}</p>
-                  </div>
-                  {section.questions.map(renderQuestion)}
-                </div>
-              </div>
-            </>
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <ReadingTest />
+            </div>
           )}
 
           {activeModule === 'writing' && (
@@ -1532,44 +1276,60 @@ export default function App() {
           )}
 
           {activeModule === 'speaking' && (
-            <div className="flex-1 flex flex-col items-center justify-center p-12 bg-slate-50">
+            <div className="flex-1 flex flex-col items-center justify-center p-12 bg-slate-50 overflow-y-auto">
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="max-w-3xl w-full bg-white rounded-[48px] p-16 shadow-2xl border border-slate-100 text-center"
+                className="max-w-3xl w-full bg-white rounded-[48px] p-12 shadow-2xl border border-slate-100 text-center"
               >
-                <div className="mb-12">
-                  <div className="inline-block px-4 py-1.5 bg-rose-100 text-rose-600 rounded-full text-xs font-black uppercase tracking-widest mb-6">
-                    Live Simulation
+                <div className="mb-8">
+                  <div className="inline-block px-4 py-1.5 bg-rose-100 text-rose-600 rounded-full text-xs font-black uppercase tracking-widest mb-4">
+                    Speaking Simulation
                   </div>
-                  <h3 className="text-4xl font-black text-slate-900 mb-6">Speaking Module</h3>
-                  <p className="text-slate-500 text-xl leading-relaxed italic bg-slate-50 p-10 rounded-[32px] border border-slate-100">
-                    "{section.content}"
-                  </p>
+                  <h3 className="text-3xl font-black text-slate-900 mb-4">{section.title}</h3>
+                  <div className="text-slate-500 text-lg leading-relaxed italic bg-slate-50 p-8 rounded-[32px] border border-slate-100 mb-8">
+                    {section.instruction}
+                  </div>
+                  {section.content && (
+                    <div className="text-slate-700 text-xl font-medium mb-8 p-6 bg-blue-50 rounded-2xl border border-blue-100">
+                      {section.content}
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex flex-col items-center gap-10">
+                <div className="space-y-6 mb-12">
+                  {section.questions?.map((q: any, idx: number) => (
+                    <div key={idx} className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-left">
+                      <p className="text-slate-800 font-bold text-lg">{q}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-col items-center gap-8">
                   <div className="relative">
                     <div className="absolute inset-0 bg-rose-400 rounded-full animate-ping opacity-20" />
-                    <div className="w-32 h-32 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-xl relative z-10">
-                      <Mic size={48} />
+                    <div className="w-24 h-24 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-xl relative z-10">
+                      <Mic size={32} />
                     </div>
                   </div>
                   
-                  <div className="space-y-2">
-                    <p className="text-2xl font-black text-slate-900">Recording Active</p>
-                    <p className="text-slate-400 font-medium">Your response is being captured for evaluation.</p>
+                  <div className="space-y-1">
+                    <p className="text-xl font-black text-slate-900">Recording Active</p>
+                    <p className="text-slate-400 text-sm font-medium">Your response is being captured for evaluation.</p>
                   </div>
 
-                  <div className="flex gap-6">
-                    <button className="px-10 py-4 rounded-2xl border-2 border-slate-200 bg-white text-slate-600 font-black hover:bg-slate-50 transition-all">
-                      Pause
-                    </button>
+                  <div className="flex gap-4 w-full">
                     <button 
-                      onClick={() => setCurrentSectionIndex(prev => Math.min(prev + 1, module.sections.length - 1))}
-                      className="px-10 py-4 rounded-2xl bg-ielts-blue text-white font-black hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200"
+                      onClick={() => {
+                        if (currentSectionIndex < module.sections.length - 1) {
+                          setCurrentSectionIndex(currentSectionIndex + 1);
+                        } else {
+                          submitTest();
+                        }
+                      }}
+                      className="flex-1 py-4 bg-ielts-blue text-white rounded-2xl font-black text-lg hover:bg-blue-700 transition-all shadow-lg"
                     >
-                      Next Part
+                      {currentSectionIndex < module.sections.length - 1 ? 'Next Section' : 'Finish Test'}
                     </button>
                   </div>
                 </div>
