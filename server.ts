@@ -1,10 +1,10 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
+import * as jwt from 'jsonwebtoken';
+import * as bcrypt from 'bcryptjs';
 
 import { User, Batch, Test, Result } from './models';
 
@@ -183,23 +183,38 @@ app.delete('/api/admin/clear-all', authenticate, async (req: any, res) => {
 // --- Vite Integration ---
 
 async function startServer() {
-  if (process.env.MONGODB_URI) {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('Connected to MongoDB');
-  } else {
-    console.warn('MONGODB_URI not found. Running without DB.');
+  console.log('Starting server...');
+  console.log('Environment variables present:', Object.keys(process.env).filter(k => !k.includes('SECRET') && !k.includes('KEY') && !k.includes('PASSWORD')));
+  try {
+    if (process.env.MONGODB_URI) {
+      console.log('Connecting to MongoDB...');
+      await mongoose.connect(process.env.MONGODB_URI, {
+        serverSelectionTimeoutMS: 5000, // 5s timeout
+      });
+      console.log('Connected to MongoDB');
+    } else {
+      console.warn('MONGODB_URI not found. Running without DB.');
+    }
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
   }
 
   if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
+    console.log('Initializing Vite middleware...');
+    try {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+      console.log('Vite middleware initialized');
+    } catch (err) {
+      console.error('Vite initialization error:', err);
+    }
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
 
