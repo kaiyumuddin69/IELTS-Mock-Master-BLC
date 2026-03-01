@@ -31,39 +31,17 @@ import {
   Bell,
   ArrowLeft,
   FileText,
-  Trash2
+  Trash2,
+  Layout,
+  Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MOCK_TEST_DATA, TestModule, Question, Section, WritingTest, WritingSubmission } from './types';
-import { auth, db, isAdmin } from './services/firebase';
+import { authService, testService } from './services/api';
 import ListeningTest from './components/listening/ListeningTest';
 import ReadingTest from './components/reading/ReadingTest';
 import InstructorPanel from './components/instructor/InstructorPanel';
 import StudentDashboard from './components/student/StudentDashboard';
-import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  onAuthStateChanged, 
-  signOut,
-  User,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  updateProfile
-} from 'firebase/auth';
-import { 
-  doc, 
-  setDoc, 
-  getDoc, 
-  collection, 
-  addDoc, 
-  serverTimestamp, 
-  query, 
-  where, 
-  getDocs, 
-  orderBy,
-  updateDoc,
-  deleteDoc
-} from 'firebase/firestore';
 
 // --- Components ---
 
@@ -283,7 +261,7 @@ export default function App() {
   const [showWarning, setShowWarning] = useState(false);
   const [passageWidth, setPassageWidth] = useState(50); // percentage
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [userResults, setUserResults] = useState<any[]>([]);
   const [practiceTasks, setPracticeTasks] = useState<any[]>([]);
@@ -296,58 +274,26 @@ export default function App() {
   const [speakingTests, setSpeakingTests] = useState<any[]>([]);
   const [selectedWritingTest, setSelectedWritingTest] = useState<WritingTest | null>(null);
   const [selectedCustomTest, setSelectedCustomTest] = useState<TestModule | null>(null);
+  const [batchId, setBatchId] = useState('');
 
   const fetchTests = async () => {
-    if (!db) return;
     try {
-      const writingSnap = await getDocs(query(collection(db, 'writing_tests'), orderBy('createdAt', 'desc')));
-      const readingSnap = await getDocs(query(collection(db, 'reading_tests'), orderBy('createdAt', 'desc')));
-      const listeningSnap = await getDocs(query(collection(db, 'listening_tests'), orderBy('createdAt', 'desc')));
-      const speakingSnap = await getDocs(query(collection(db, 'speaking_tests'), orderBy('createdAt', 'desc')));
-      
-      setWritingTests(writingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as WritingTest)));
-      setReadingTests(readingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TestModule)));
-      setListeningTests(listeningSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TestModule)));
-      setSpeakingTests(speakingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
+      const tests = await testService.getTests();
+      setWritingTests(tests.filter((t: any) => t.module === 'writing'));
+      setReadingTests(tests.filter((t: any) => t.module === 'reading'));
+      setListeningTests(tests.filter((t: any) => t.module === 'listening'));
+      setSpeakingTests(tests.filter((t: any) => t.module === 'speaking'));
     } catch (e: any) {
-      if (e.code !== 'permission-denied') {
-        console.error("Error fetching tests", e);
-      }
+      console.error("Error fetching tests", e);
     }
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchTests();
-    }
-  }, [user]);
-
-  const fetchUserResults = async (userId: string) => {
-    if (!db || !userId) return;
+  const fetchUserResults = async () => {
     try {
-      const q = query(
-        collection(db, 'results'),
-        where('userId', '==', userId),
-        orderBy('timestamp', 'desc')
-      );
-      const querySnapshot = await getDocs(q);
-      const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const results = await testService.getMyResults();
       setUserResults(results);
-
-      // Fetch practice tasks (Sort on client to avoid index requirement)
-      const tasksQuery = query(
-        collection(db, 'practice_tasks'), 
-        where('userId', '==', userId)
-      );
-      const tasksSnap = await getDocs(tasksQuery);
-      const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Client-side sort by createdAt desc
-      tasks.sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      setPracticeTasks(tasks);
     } catch (e: any) {
-      if (e.code !== 'permission-denied') {
-        console.error("Error fetching user data", e);
-      }
+      console.error("Error fetching user data", e);
     }
   };
   
@@ -360,75 +306,60 @@ export default function App() {
   const [authError, setAuthError] = useState('');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
       setUser(currentUser);
-      if (currentUser) {
-        fetchUserResults(currentUser.uid);
-      } else {
-        setUserResults([]);
-      }
-      setLoading(false);
-    });
-    return () => unsubscribe();
+      fetchTests();
+      fetchUserResults();
+    }
+    setLoading(false);
   }, []);
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-      if (!document.fullscreenElement && view === 'test') {
-        setShowWarning(true);
-      }
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [view]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
     try {
       if (authMode === 'signup') {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(userCredential.user, { displayName });
+        await authService.register({ name: displayName, email, password, batchId });
+        await authService.login({ email, password });
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        await authService.login({ email, password });
       }
+      const currentUser = authService.getCurrentUser();
+      setUser(currentUser);
+      fetchTests();
+      fetchUserResults();
       setShowAuthModal(false);
       setEmail('');
       setPassword('');
       setDisplayName('');
+      setBatchId('');
     } catch (error: any) {
-      setAuthError(error.message);
+      setAuthError(error.response?.data?.message || error.message);
     }
   };
 
-  const loginWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-      setShowAuthModal(false);
-    } catch (error) {
-      console.error("Login failed", error);
-    }
+  const logout = () => {
+    authService.logout();
+    setUser(null);
+    setView('landing');
   };
-
-  const logout = () => signOut(auth);
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newTaskTitle || !newTaskDueDate) return;
     setIsAddingTask(true);
     try {
-      await addDoc(collection(db, 'practice_tasks'), {
-        userId: user.uid,
+      const newTask = {
+        id: Math.random().toString(36).substr(2, 9),
         title: newTaskTitle,
         dueDate: newTaskDueDate,
         completed: false,
-        createdAt: serverTimestamp()
-      });
+        createdAt: new Date()
+      };
+      setPracticeTasks(prev => [newTask, ...prev]);
       setNewTaskTitle('');
       setNewTaskDueDate('');
-      if (user) fetchUserResults(user.uid);
     } catch (e) {
       console.error("Error adding task", e);
     } finally {
@@ -438,9 +369,6 @@ export default function App() {
 
   const toggleTask = async (taskId: string, currentStatus: boolean) => {
     try {
-      await updateDoc(doc(db, 'practice_tasks', taskId), {
-        completed: !currentStatus
-      });
       setPracticeTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !currentStatus } : t));
     } catch (e) {
       console.error("Error updating task", e);
@@ -449,7 +377,6 @@ export default function App() {
 
   const deleteTask = async (taskId: string) => {
     try {
-      await deleteDoc(doc(db, 'practice_tasks', taskId));
       setPracticeTasks(prev => prev.filter(t => t.id !== taskId));
     } catch (e) {
       console.error("Error deleting task", e);
@@ -492,48 +419,22 @@ export default function App() {
 
     if (user && activeModule && currentModuleData) {
       try {
-        if (activeModule === 'writing' && selectedWritingTest) {
-          const submissionRef = collection(db, 'writing_submissions');
-          await addDoc(submissionRef, {
-            testId: selectedWritingTest.id,
-            testTitle: selectedWritingTest.title,
-            studentId: user.uid,
-            studentEmail: user.email,
-            studentName: user.displayName || user.email?.split('@')[0] || 'Student',
-            task1Answer: answers[`writing_ws1`] || '',
-            task2Answer: answers[`writing_ws2`] || '',
-            status: 'pending',
-            submittedAt: serverTimestamp()
-          });
-        } else if (activeModule === 'speaking') {
-          const resultRef = collection(db, 'results');
-          await addDoc(resultRef, {
-            userId: user.uid,
-            userEmail: user.email,
-            testId: currentModuleData.id,
-            module: 'speaking',
-            status: 'completed',
-            timestamp: serverTimestamp()
-          });
-        } else {
-          const testId = currentModuleData.id;
-          const resultRef = collection(db, 'results');
-          const { score, total } = calculateScore();
-          await addDoc(resultRef, {
-            userId: user.uid,
-            userEmail: user.email,
-            testId,
-            module: activeModule,
-            answers,
-            score,
-            total,
-            timestamp: serverTimestamp()
-          });
-        }
-        // Refresh results
-        fetchUserResults(user.uid);
+        const { score, total } = calculateScore();
+        const band = getBandScore(score, total);
+        
+        await testService.submitResult({
+          testId: currentModuleData.id,
+          module: activeModule,
+          answers,
+          score,
+          total,
+          band,
+          status: activeModule === 'writing' ? 'pending' : 'completed'
+        });
+
+        fetchUserResults();
       } catch (e) {
-        console.error("Failed to save to Firebase", e);
+        console.error("Failed to save result", e);
       }
     }
 
@@ -820,7 +721,7 @@ export default function App() {
   }
 
   if (view === 'instructor') {
-    if (!isAdmin(user?.email)) {
+    if (user?.role !== 'admin') {
       setView('landing');
       return null;
     }
@@ -862,7 +763,7 @@ export default function App() {
             <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Mock Master</span>
           </div>
           <div className="flex items-center gap-6">
-            {user && isAdmin(user.email) && (
+            {user && user.role === 'admin' && (
               <button 
                 onClick={() => setView('instructor')}
                 className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-sm transition-colors"
@@ -968,17 +869,29 @@ export default function App() {
 
                     <form onSubmit={handleEmailAuth} className="space-y-5">
                       {authMode === 'signup' && (
-                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Full Name</label>
-                          <input 
-                            type="text" 
-                            required
-                            value={displayName}
-                            onChange={(e) => setDisplayName(e.target.value)}
-                            className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-ielts-blue/30 outline-none transition-all font-medium text-slate-700"
-                            placeholder="e.g. John Smith"
-                          />
-                        </motion.div>
+                        <>
+                          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Full Name</label>
+                            <input 
+                              type="text" 
+                              required
+                              value={displayName}
+                              onChange={(e) => setDisplayName(e.target.value)}
+                              className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-ielts-blue/30 outline-none transition-all font-medium text-slate-700"
+                              placeholder="e.g. John Smith"
+                            />
+                          </motion.div>
+                          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Batch ID (Optional)</label>
+                            <input 
+                              type="text" 
+                              value={batchId}
+                              onChange={(e) => setBatchId(e.target.value)}
+                              className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-ielts-blue/30 outline-none transition-all font-medium text-slate-700"
+                              placeholder="e.g. 65f123..."
+                            />
+                          </motion.div>
+                        </>
                       )}
                       <div>
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Email Address</label>
@@ -1021,20 +934,6 @@ export default function App() {
                       </button>
                     </form>
 
-                    <div className="mt-8 flex items-center gap-4">
-                      <div className="h-px bg-slate-100 flex-1" />
-                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">OR CONTINUE WITH</span>
-                      <div className="h-px bg-slate-100 flex-1" />
-                    </div>
-
-                    <button 
-                      onClick={loginWithGoogle}
-                      className="w-full mt-6 flex items-center justify-center gap-4 py-4 border-2 border-slate-100 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-200 transition-all active:scale-[0.98]"
-                    >
-                      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
-                      Google Account
-                    </button>
-
                     <p className="text-center mt-10 text-sm font-medium text-slate-500">
                       {authMode === 'login' ? "New to IELTS BLC?" : "Already have an account?"}
                       <button 
@@ -1059,6 +958,7 @@ export default function App() {
             <StudentDashboard 
               user={user}
               practiceTasks={practiceTasks}
+              userResults={userResults}
               readingTests={readingTests}
               listeningTests={listeningTests}
               writingTests={writingTests}

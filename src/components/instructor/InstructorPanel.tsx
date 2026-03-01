@@ -18,28 +18,16 @@ import {
   Layout,
   Mic,
   RefreshCw,
-  Star
+  Star,
+  PenTool,
+  AlertTriangle
 } from 'lucide-react';
-import { db } from '../../services/firebase';
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
-  orderBy, 
-  doc, 
-  updateDoc, 
-  deleteDoc,
-  serverTimestamp,
-  where
-} from 'firebase/firestore';
 import { WritingTest, WritingSubmission, TestModule } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { isAdmin, auth } from '../../services/firebase';
-import { User } from 'firebase/auth';
+import { testService, batchService } from '../../services/api';
 import { GoogleGenAI } from "@google/genai";
 
-export default function InstructorPanel({ user }: { user: User | null }) {
+export default function InstructorPanel({ user }: { user: any | null }) {
   const [activeTab, setActiveTab] = useState<'overview' | 'writing' | 'reading' | 'listening' | 'speaking' | 'submissions'>('overview');
   const [writingTests, setWritingTests] = useState<WritingTest[]>([]);
   const [readingTests, setReadingTests] = useState<TestModule[]>([]);
@@ -51,6 +39,7 @@ export default function InstructorPanel({ user }: { user: User | null }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [markingSubmission, setMarkingSubmission] = useState<WritingSubmission | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Form states for new writing test
   const [newWritingTest, setNewWritingTest] = useState({
@@ -74,27 +63,26 @@ export default function InstructorPanel({ user }: { user: User | null }) {
   const [score, setScore] = useState(0);
 
   useEffect(() => {
-    if (user && isAdmin(user.email)) {
+    if (user && user.role === 'admin') {
       fetchData();
     }
   }, [user]);
 
   const fetchData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const writingSnap = await getDocs(query(collection(db, 'writing_tests'), orderBy('createdAt', 'desc')));
-      const readingSnap = await getDocs(query(collection(db, 'reading_tests'), orderBy('createdAt', 'desc')));
-      const listeningSnap = await getDocs(query(collection(db, 'listening_tests'), orderBy('createdAt', 'desc')));
-      const speakingSnap = await getDocs(query(collection(db, 'speaking_tests'), orderBy('createdAt', 'desc')));
-      const submissionsSnap = await getDocs(query(collection(db, 'writing_submissions'), orderBy('submittedAt', 'desc')));
+      const tests = await testService.getTests();
+      const submissionsData = await testService.getAdminSubmissions();
       
-      setWritingTests(writingSnap.docs.map(d => ({ id: d.id, ...d.data() } as WritingTest)));
-      setReadingTests(readingSnap.docs.map(d => ({ id: d.id, ...d.data() } as TestModule)));
-      setListeningTests(listeningSnap.docs.map(d => ({ id: d.id, ...d.data() } as TestModule)));
-      setSpeakingTests(speakingSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)));
-      setSubmissions(submissionsSnap.docs.map(d => ({ id: d.id, ...d.data() } as WritingSubmission)));
-    } catch (error) {
-      console.error("Error fetching data:", error);
+      setWritingTests(tests.filter((t: any) => t.module === 'writing'));
+      setReadingTests(tests.filter((t: any) => t.module === 'reading'));
+      setListeningTests(tests.filter((t: any) => t.module === 'listening'));
+      setSpeakingTests(tests.filter((t: any) => t.module === 'speaking'));
+      setSubmissions(submissionsData);
+    } catch (err: any) {
+      console.error("Error fetching data:", err);
+      setError(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
@@ -103,32 +91,27 @@ export default function InstructorPanel({ user }: { user: User | null }) {
   const handleCreateWritingTest = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, 'writing_tests'), {
+      await testService.createTest({
         ...newWritingTest,
-        createdAt: serverTimestamp(),
-        createdBy: 'admin'
+        module: 'writing'
       });
       setShowCreateModal(false);
       setNewWritingTest({ title: '', task1Prompt: '', task2Prompt: '', duration: 60 });
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating writing test:", error);
     }
   };
-
-  const [isSeeding, setIsSeeding] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleSeedData = async () => {
     if (!confirm("This will populate the database with the complete IELTS test data you provided. Continue?")) return;
     setIsSeeding(true);
     try {
-      // 1. Seed Listening Test (from HTML)
-      await addDoc(collection(db, 'listening_tests'), {
+      // 1. Seed Listening Test
+      await testService.createTest({
         title: 'IELTS Listening - Removal Booking & Guitars',
         duration: 30,
-        createdAt: serverTimestamp(),
-        createdBy: user?.uid,
+        module: 'listening',
         sections: [
           {
             id: 'part1',
@@ -136,16 +119,16 @@ export default function InstructorPanel({ user }: { user: User | null }) {
             instruction: 'Write NO MORE THAN TWO WORDS AND/OR NUMBERS for each answer.',
             content: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
             questions: [
-              { id: '1', type: 'fill-in-the-blanks', text: 'Contact phone number is (1)' },
-              { id: '2', type: 'fill-in-the-blanks', text: 'collect from 119 (2) Hamilton, Waikato' },
-              { id: '3', type: 'fill-in-the-blanks', text: 'Ship to 2096 (3) Edmonton, Alberta' },
-              { id: '4', type: 'fill-in-the-blanks', text: 'Prepare for shipment on (4), January the 9th' },
-              { id: '5', type: 'fill-in-the-blanks', text: 'Tidy up the collection site by 9 AM on (5), January the 12th' },
-              { id: '6', type: 'fill-in-the-blanks', text: 'Store before shipment for (6) months' },
-              { id: '7', type: 'matching', text: '7. clothes', options: ['readily accessible', 'personal objects', 'precious items'] },
-              { id: '8', type: 'matching', text: '8. coffee maker', options: ['readily accessible', 'personal objects', 'precious items'] },
-              { id: '9', type: 'matching', text: '9. family photos', options: ['readily accessible', 'personal objects', 'precious items'] },
-              { id: '10', type: 'matching', text: '10. computers', options: ['readily accessible', 'personal objects', 'precious items'] }
+              { id: '1', type: 'fill-in-the-blanks', text: 'Contact phone number is (1)', correctAnswer: '0412 345 678' },
+              { id: '2', type: 'fill-in-the-blanks', text: 'collect from 119 (2) Hamilton, Waikato', correctAnswer: 'Street' },
+              { id: '3', type: 'fill-in-the-blanks', text: 'Ship to 2096 (3) Edmonton, Alberta', correctAnswer: 'Avenue' },
+              { id: '4', type: 'fill-in-the-blanks', text: 'Prepare for shipment on (4), January the 9th', correctAnswer: 'Monday' },
+              { id: '5', type: 'fill-in-the-blanks', text: 'Tidy up the collection site by 9 AM on (5), January the 12th', correctAnswer: 'Thursday' },
+              { id: '6', type: 'fill-in-the-blanks', text: 'Store before shipment for (6) months', correctAnswer: '3' },
+              { id: '7', type: 'matching', text: '7. clothes', options: ['readily accessible', 'personal objects', 'precious items'], correctAnswer: 'personal objects' },
+              { id: '8', type: 'matching', text: '8. coffee maker', options: ['readily accessible', 'personal objects', 'precious items'], correctAnswer: 'readily accessible' },
+              { id: '9', type: 'matching', text: '9. family photos', options: ['readily accessible', 'personal objects', 'precious items'], correctAnswer: 'precious items' },
+              { id: '10', type: 'matching', text: '10. computers', options: ['readily accessible', 'personal objects', 'precious items'], correctAnswer: 'precious items' }
             ]
           },
           {
@@ -154,99 +137,52 @@ export default function InstructorPanel({ user }: { user: User | null }) {
             instruction: 'Write NO MORE THAN TWO WORDS for each answer.',
             content: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
             questions: [
-              { id: '11', type: 'fill-in-the-blanks', text: 'Suitable for (11)' },
-              { id: '12', type: 'fill-in-the-blanks', text: 'Positioned (12) the lap of the guitar player' },
-              { id: '13', type: 'fill-in-the-blanks', text: 'Played by (13)' },
-              { id: '14', type: 'fill-in-the-blanks', text: 'support the (14)' },
-              { id: '15', type: 'fill-in-the-blanks', text: 'purchased by (15) due to their affordable prices' },
-              { id: '16', type: 'fill-in-the-blanks', text: 'popular with (16)' },
-              { id: '19', type: 'multiple-choice', text: 'What is the reason given for the increasing sales of acoustic guitars?', options: ['A. Acoustic guitars are used more by pop stars', 'B. Acoustic guitars are used widely in country music', 'C. More people choose acoustic guitars over six-string guitars'] },
-              { id: '20', type: 'multiple-choice', text: 'Education has great potential to increase guitar sales because', options: ['A. 50 percent of new buyers are female artists', 'B. half the guitars every year are bought by first-time players', 'C. long-term guitar users tend to spend a lot of money'] }
+              { id: '11', type: 'fill-in-the-blanks', text: 'Suitable for (11)', correctAnswer: 'beginners' },
+              { id: '12', type: 'fill-in-the-blanks', text: 'Positioned (12) the lap of the guitar player', correctAnswer: 'across' },
+              { id: '13', type: 'fill-in-the-blanks', text: 'Played by (13)', correctAnswer: 'fingers' },
+              { id: '14', type: 'fill-in-the-blanks', text: 'support the (14)', correctAnswer: 'neck' },
+              { id: '15', type: 'fill-in-the-blanks', text: 'purchased by (15) due to their affordable prices', correctAnswer: 'students' },
+              { id: '16', type: 'fill-in-the-blanks', text: 'popular with (16)', correctAnswer: 'rock stars' },
+              { id: '19', type: 'multiple-choice', text: 'What is the reason given for the increasing sales of acoustic guitars?', options: ['A. Acoustic guitars are used more by pop stars', 'B. Acoustic guitars are used widely in country music', 'C. More people choose acoustic guitars over six-string guitars'], correctAnswer: 'A. Acoustic guitars are used more by pop stars' },
+              { id: '20', type: 'multiple-choice', text: 'Education has great potential to increase guitar sales because', options: ['A. 50 percent of new buyers are female artists', 'B. half the guitars every year are bought by first-time players', 'C. long-term guitar users tend to spend a lot of money'], correctAnswer: 'B. half the guitars every year are bought by first-time players' }
             ]
           }
         ]
       });
 
-      // 2. Seed Reading Test (from HTML)
-      await addDoc(collection(db, 'reading_tests'), {
-        title: 'IELTS Reading - History of Woodlands & Succession',
+      // Seed Reading Test
+      await testService.createTest({
+        title: 'IELTS Reading - The History of Glass',
         duration: 60,
-        createdAt: serverTimestamp(),
-        createdBy: user?.uid,
+        module: 'reading',
         sections: [
           {
-            id: 'part1',
-            title: 'Part 1: The History of Woodlands in Britain',
-            instruction: 'Choose TRUE, FALSE or NOT GIVEN.',
-            content: `
-              <p>The climate in Britain has been arctic for the last several million years, punctuated by relatively warm timespans, or interglacials of thousands of years, one of which we are in as of now. Since the last glaciation, British woodland history is considered quite short in terms of geological time spans, and is also closely related to the human civilization developing.</p>
-              <p>At the peak of the last glaciation (100,000 – 12,000 BC), the majority of Britain would have had no trees. Birch and willow scrub may have grown along the lower reaches of the ice, with pine in some areas.</p>
-            `,
+            id: 'passage1',
+            title: 'Passage 1: The History of Glass',
+            instruction: 'Do the following statements agree with the information given in Reading Passage 1?',
+            content: 'Glass is a non-crystalline, often transparent amorphous solid that has widespread practical, technological, and decorative use in, for example, window panes, tableware, and optics.',
             questions: [
-              { id: '1', type: 'tfng', text: 'An understanding of Britain’s pre-glacial flora’s development has been deduced from studies of pollen and seed deposits in peat.', options: ['TRUE', 'FALSE', 'NOT GIVEN'] },
-              { id: '2', type: 'tfng', text: 'Various species of wildwood types began growing in Britain in around the year 8500 BC.', options: ['TRUE', 'FALSE', 'NOT GIVEN'] },
-              { id: '3', type: 'tfng', text: 'Beech and lime did not spread beyond southern Britain.', options: ['TRUE', 'FALSE', 'NOT GIVEN'] },
-              { id: '10', type: 'matching', text: 'Every type of wood in England belonged to some person or some community.', options: ['A. The Palaeolithic era', 'B. The Bronze age', 'C. The Iron age', 'D. The Medieval era', 'E. The Mesolithic age', 'F. Roman times'] }
+              { id: '1', type: 'tfng', question: 'Glass is a crystalline solid.', correctAnswer: 'FALSE' },
+              { id: '2', type: 'tfng', question: 'Volcanic glass is a man-made material.', correctAnswer: 'FALSE' },
+              { id: '3', type: 'tfng', question: 'Silicate glasses are based on silicon dioxide.', correctAnswer: 'TRUE' }
             ]
           }
         ]
       });
 
-      // 3. Seed Writing Test (from HTML)
-      await addDoc(collection(db, 'writing_tests'), {
-        title: 'IELTS Writing - UK Issues & Death Penalty',
+      // Seed Writing Test
+      await testService.createTest({
+        title: 'IELTS Writing - Academic Test 1',
         duration: 60,
-        createdAt: serverTimestamp(),
-        createdBy: user?.uid,
-        task1Prompt: 'The chart below gives some of the most reported issues among people living in UK cities in 2008 (%). Summarise the information by selecting and reporting the main features, and make comparisons where relevant.',
-        task2Prompt: 'Some people advocate the death penalty for those who committed violent crimes. Others say that capital punishment is unacceptable in contemporary society. Describe the advantages and disadvantages of the death penalty and give your opinion.',
-        task1Image: 'https://picsum.photos/seed/ielts-chart/800/400'
+        module: 'writing',
+        task1Prompt: 'The chart below shows the number of tourists visiting a particular island between 2010 and 2017.',
+        task2Prompt: 'Some people think that it is best to work for the same organization for one\'s whole life.'
       });
 
-      // 4. Seed Speaking Test (from HTML)
-      await addDoc(collection(db, 'speaking_tests'), {
-        title: 'IELTS Speaking Practice Test 1',
-        duration: 15,
-        createdAt: serverTimestamp(),
-        createdBy: user?.uid,
-        parts: [
-          {
-            id: 'part1',
-            title: 'Part 1: Introduction and Interview',
-            instruction: 'The examiner asks the candidate about him/herself, his/her home, work or studies and other familiar topics.',
-            questions: [
-              'What is your full name?',
-              'Can I see your ID?',
-              'Where are you from?',
-              'Do you work or are you a student?',
-              'What do you like about your job/studies?'
-            ]
-          },
-          {
-            id: 'part2',
-            title: 'Part 2: Individual Long Turn (Cue Card)',
-            instruction: 'The candidate is given a task card and has 1 minute to prepare a talk of 1-2 minutes.',
-            content: 'Describe a place you have visited that you would like to go back to. You should say: where it is, when you went there, what you did there, and explain why you would like to go back there.',
-            questions: []
-          },
-          {
-            id: 'part3',
-            title: 'Part 3: Two-way Discussion',
-            instruction: 'The examiner and the candidate discuss issues related to the topic in Part 2 in a more general and abstract way.',
-            questions: [
-              'Why do people like to travel to different places?',
-              'Do you think it is better to travel alone or with others?',
-              'How has the way people travel changed in recent years?',
-              'What are the advantages and disadvantages of tourism for a country?'
-            ]
-          }
-        ]
-      });
-
-      alert("Complete IELTS test data seeded successfully!");
+      alert("Database seeded successfully!");
       fetchData();
-    } catch (e) {
-      console.error("Error seeding data", e);
+    } catch (error: any) {
+      console.error("Error seeding data:", error);
       alert("Failed to seed data.");
     } finally {
       setIsSeeding(false);
@@ -283,18 +219,16 @@ export default function InstructorPanel({ user }: { user: User | null }) {
 
       const data = JSON.parse(response.text.replace(/```json|```/g, '').trim());
       
-      await addDoc(collection(db, `${activeTab}_tests`), {
+      await testService.createTest({
         ...data,
-        type: activeTab,
-        createdAt: serverTimestamp(),
-        createdBy: user?.uid
+        module: activeTab
       });
 
       alert("AI Test generated and saved!");
       fetchData();
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error generating AI test", e);
-      alert("Failed to generate AI test. Check console for details.");
+      alert("Failed to generate AI test.");
     } finally {
       setIsGenerating(false);
     }
@@ -306,16 +240,10 @@ export default function InstructorPanel({ user }: { user: User | null }) {
     if (password !== 'DELETE') return;
 
     try {
-      const collections = ['writing_tests', 'reading_tests', 'listening_tests', 'speaking_tests', 'writing_submissions', 'results'];
-      for (const colName of collections) {
-        const snap = await getDocs(collection(db, colName));
-        for (const docItem of snap.docs) {
-          await deleteDoc(doc(db, colName, docItem.id));
-        }
-      }
+      await testService.clearAllData();
       alert("All data cleared successfully!");
       fetchData();
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error clearing data", e);
       alert("Failed to clear data.");
     }
@@ -323,12 +251,10 @@ export default function InstructorPanel({ user }: { user: User | null }) {
 
   const handleCreateModuleTest = async (e: React.FormEvent) => {
     e.preventDefault();
-    const collectionName = newModuleTest.type === 'reading' ? 'reading_tests' : 'listening_tests';
     try {
-      await addDoc(collection(db, collectionName), {
+      await testService.createTest({
         ...newModuleTest,
-        createdAt: serverTimestamp(),
-        createdBy: user?.uid,
+        module: newModuleTest.type,
         sections: [
           {
             id: 's1',
@@ -342,7 +268,7 @@ export default function InstructorPanel({ user }: { user: User | null }) {
       setShowCreateModal(false);
       setNewModuleTest({ title: '', duration: 60, type: 'reading', content: '', instruction: '' });
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating module test:", error);
     }
   };
@@ -350,45 +276,28 @@ export default function InstructorPanel({ user }: { user: User | null }) {
   const handleMarkSubmission = async () => {
     if (!markingSubmission) return;
     try {
-      const subRef = doc(db, 'writing_submissions', markingSubmission.id);
-      await updateDoc(subRef, {
+      await testService.updateSubmission(markingSubmission.id, {
         status: 'marked',
         score,
-        feedback,
-        markedAt: serverTimestamp()
+        feedback
       });
 
-      // Send automated email (mocking the API call)
-      await fetch('/api/send-feedback-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: markingSubmission.studentEmail,
-          studentName: markingSubmission.studentName,
-          testTitle: markingSubmission.testTitle,
-          score,
-          feedback
-        })
-      });
-
+      alert("Submission marked successfully!");
       setMarkingSubmission(null);
       setFeedback('');
       setScore(0);
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error marking submission:", error);
     }
   };
 
-  const handleDeleteTest = async (id: string, type: 'writing' | 'reading' | 'listening' | 'speaking') => {
+  const handleDeleteTest = async (id: string) => {
     if (!confirm('Are you sure you want to delete this test?')) return;
-    const collectionName = type === 'writing' ? 'writing_tests' : 
-                          type === 'reading' ? 'reading_tests' : 
-                          type === 'listening' ? 'listening_tests' : 'speaking_tests';
     try {
-      await deleteDoc(doc(db, collectionName, id));
+      await testService.deleteTest(id);
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting test:", error);
     }
   };
@@ -401,7 +310,7 @@ export default function InstructorPanel({ user }: { user: User | null }) {
     );
   }
 
-  if (!isAdmin(user?.email)) {
+  if (!user || user.role !== 'admin') {
     return (
       <div className="flex-1 flex items-center justify-center bg-slate-50">
         <div className="text-center">
@@ -467,6 +376,28 @@ export default function InstructorPanel({ user }: { user: User | null }) {
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-12">
+        {error && (
+          <div className="mb-8 p-6 bg-rose-50 border border-rose-100 rounded-[32px] flex items-center justify-between">
+            <div className="flex items-center gap-4 text-rose-600">
+              <AlertTriangle size={24} />
+              <div>
+                <p className="font-black">Permission Error</p>
+                <p className="text-sm font-medium opacity-80">{error}</p>
+                <p className="text-[10px] mt-2 opacity-60">
+                  Ensure your Firestore Rules allow read/write access. 
+                  Example: <code className="bg-rose-100 px-1 rounded">allow read, write: if request.auth != null;</code>
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={fetchData}
+              className="px-6 py-2 bg-rose-600 text-white rounded-xl font-bold text-sm hover:bg-rose-700 transition-all"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         <header className="flex justify-between items-end mb-12">
           <div>
             <h1 className="text-4xl font-black text-slate-900 capitalize">{activeTab}</h1>
@@ -520,7 +451,7 @@ export default function InstructorPanel({ user }: { user: User | null }) {
                       <FileText size={24} />
                     </div>
                     <button 
-                      onClick={() => handleDeleteTest(test.id, 'writing')}
+                      onClick={() => handleDeleteTest(test.id)}
                       className="text-slate-300 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={18} />
@@ -547,7 +478,7 @@ export default function InstructorPanel({ user }: { user: User | null }) {
                       <BookOpen size={24} />
                     </div>
                     <button 
-                      onClick={() => handleDeleteTest(test.id, 'reading')}
+                      onClick={() => handleDeleteTest(test.id)}
                       className="text-slate-300 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={18} />
@@ -574,7 +505,7 @@ export default function InstructorPanel({ user }: { user: User | null }) {
                       <Headphones size={24} />
                     </div>
                     <button 
-                      onClick={() => handleDeleteTest(test.id, 'listening')}
+                      onClick={() => handleDeleteTest(test.id)}
                       className="text-slate-300 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={18} />
@@ -601,7 +532,7 @@ export default function InstructorPanel({ user }: { user: User | null }) {
                       <Mic size={24} />
                     </div>
                     <button 
-                      onClick={() => handleDeleteTest(test.id, 'speaking')}
+                      onClick={() => handleDeleteTest(test.id)}
                       className="text-slate-300 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={18} />

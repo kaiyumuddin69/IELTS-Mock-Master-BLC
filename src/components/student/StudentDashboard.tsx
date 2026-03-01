@@ -19,6 +19,7 @@ import { TestModule, WritingTest } from '../../types';
 interface StudentDashboardProps {
   user: any;
   practiceTasks: any[];
+  userResults: any[];
   readingTests: TestModule[];
   listeningTests: TestModule[];
   writingTests: WritingTest[];
@@ -37,6 +38,7 @@ interface StudentDashboardProps {
 export default function StudentDashboard({
   user,
   practiceTasks,
+  userResults,
   readingTests,
   listeningTests,
   writingTests,
@@ -61,7 +63,7 @@ export default function StudentDashboard({
       >
         <div>
           <h2 className="text-5xl font-black text-slate-900 mb-4 tracking-tight">
-            Welcome back, {user.displayName?.split(' ')[0] || 'Candidate'}
+            Welcome back, {user.name?.split(' ')[0] || 'Candidate'}
           </h2>
           <p className="text-slate-500 text-xl max-w-2xl leading-relaxed">
             Your IELTS journey is progressing well. You have {practiceTasks.filter(t => !t.completed).length} goals to complete today.
@@ -157,6 +159,60 @@ export default function StudentDashboard({
               )}
             </div>
           </section>
+
+          {/* Practice History */}
+          {userResults.length > 0 && (
+            <section>
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                  <CheckCircle size={20} />
+                </div>
+                <h3 className="text-2xl font-black text-slate-900">Practice History</h3>
+              </div>
+              <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50 border-b border-slate-100">
+                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Module</th>
+                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Score</th>
+                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Band</th>
+                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {userResults.map((res, idx) => (
+                      <tr key={res.id} className={idx < userResults.length - 1 ? 'border-b border-slate-50' : ''}>
+                        <td className="px-8 py-6">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                              res.module === 'reading' ? 'bg-emerald-50 text-emerald-600' :
+                              res.module === 'listening' ? 'bg-blue-50 text-blue-600' :
+                              'bg-purple-50 text-purple-600'
+                            }`}>
+                              {res.module === 'reading' && <BookOpen size={14} />}
+                              {res.module === 'listening' && <Headphones size={14} />}
+                              {res.module === 'writing' && <PenTool size={14} />}
+                              {res.module === 'speaking' && <Mic size={14} />}
+                            </div>
+                            <span className="font-bold text-slate-700 capitalize">{res.module}</span>
+                          </div>
+                        </td>
+                        <td className="px-8 py-6 font-bold text-slate-600">{res.score} / {res.total}</td>
+                        <td className="px-8 py-6">
+                          <span className="px-3 py-1 bg-ielts-blue/10 text-ielts-blue rounded-full text-xs font-black">
+                            {((res.score / res.total) * 9).toFixed(1)}
+                          </span>
+                        </td>
+                        <td className="px-8 py-6 text-slate-400 text-sm font-medium">
+                          {res.timestamp?.toDate ? res.timestamp.toDate().toLocaleDateString() : 'Recent'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
         </div>
 
         {/* Right Column: Sidebar */}

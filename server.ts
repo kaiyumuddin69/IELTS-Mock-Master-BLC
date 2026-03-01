@@ -1,101 +1,204 @@
-import express from "express";
-import { createServer as createViteServer } from "vite";
-import path from "path";
-import { fileURLToPath } from "url";
-import Database from "better-sqlite3";
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { createServer as createViteServer } from 'vite';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { User, Batch, Test, Result } from './models';
 
-const db = new Database("ielts.db");
+dotenv.config();
 
-// Initialize database
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE,
-    name TEXT
-  );
+const app = express();
+const PORT = 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'ielts-super-secret-key';
 
-  CREATE TABLE IF NOT EXISTS tests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT,
-    type TEXT -- 'listening', 'reading', 'writing', 'speaking'
-  );
+// --- Middleware ---
 
-  CREATE TABLE IF NOT EXISTS user_answers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_email TEXT,
-    test_id INTEGER,
-    module TEXT,
-    answers TEXT, -- JSON string
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_email, test_id, module)
-  );
+app.use(cors());
+app.use(express.json());
 
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_user_answers_unique ON user_answers (user_email, test_id, module);
-`);
+const authenticate = (req: any, res: any, next: any) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'Unauthorized' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ message: 'Invalid token' });
+  }
+};
+
+// --- API Routes ---
+
+// Auth
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, email, password, batchId } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ name, email, password: hashedPassword, batchId });
+    await user.save();
+    res.status(201).json({ message: 'User registered' });
+  } catch (err: any) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email }).populate('batchId');
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    const token = jwt.sign({ id: user._id, role: user.role, batchId: user.batchId?._id }, JWT_SECRET);
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role, batchId: user.batchId } });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Tests (Batch-Filtered)
+app.get('/api/tests', authenticate, async (req: any, res) => {
+  try {
+    if (req.user.role === 'admin') {
+      const tests = await Test.find();
+      return res.json(tests);
+    }
+    const batch = await Batch.findById(req.user.batchId).populate('assignedTests');
+    res.json(batch?.assignedTests || []);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Results
+app.post('/api/results', authenticate, async (req: any, res) => {
+  try {
+    const result = new Result({ ...req.body, userId: req.user.id });
+    await result.save();
+    res.status(201).json(result);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.get('/api/results/me', authenticate, async (req: any, res) => {
+  try {
+    const results = await Result.find({ userId: req.user.id }).populate('testId').sort({ timestamp: -1 });
+    res.json(results);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Admin: Manage Tests
+app.post('/api/tests', authenticate, async (req: any, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    const test = new Test(req.body);
+    await test.save();
+    res.status(201).json(test);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.delete('/api/tests/:id', authenticate, async (req: any, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    await Test.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Test deleted' });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Admin: Manage Batches
+app.get('/api/batches', authenticate, async (req: any, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    const batches = await Batch.find().populate('assignedTests');
+    res.json(batches);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post('/api/batches', authenticate, async (req: any, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    const batch = new Batch(req.body);
+    await batch.save();
+    res.status(201).json(batch);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.patch('/api/batches/:id', authenticate, async (req: any, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    const batch = await Batch.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(batch);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.get('/api/admin/submissions', authenticate, async (req: any, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    const results = await Result.find().populate('userId').populate('testId').sort({ timestamp: -1 });
+    res.json(results);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.patch('/api/admin/submissions/:id', authenticate, async (req: any, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    const result = await Result.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.delete('/api/admin/clear-all', authenticate, async (req: any, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    await Test.deleteMany({});
+    await Result.deleteMany({});
+    await Batch.deleteMany({});
+    res.json({ message: 'All data cleared' });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// --- Vite Integration ---
 
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
-
-  app.use(express.json());
-
-  // API Routes
-  app.post("/api/save-answers", (req, res) => {
-    const { email, testId, module, answers } = req.body;
-    
-    try {
-      const stmt = db.prepare(`
-        INSERT INTO user_answers (user_email, test_id, module, answers)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(user_email, test_id, module) DO UPDATE SET
-        answers = excluded.answers,
-        updated_at = CURRENT_TIMESTAMP
-      `);
-      
-      stmt.run(email, testId, module, JSON.stringify(answers));
-      res.json({ success: true });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Failed to save answers" });
-    }
-  });
-
-  app.get("/api/get-answers", (req, res) => {
-    const { email, testId, module } = req.query;
-    const row = db.prepare("SELECT answers FROM user_answers WHERE user_email = ? AND test_id = ? AND module = ?").get(email, testId, module);
-    res.json(row ? JSON.parse(row.answers) : {});
-  });
-
-  app.post("/api/send-feedback-email", (req, res) => {
-    const { email, studentName, testTitle, score, feedback } = req.body;
-    
-    console.log(`[EMAIL SERVICE] Sending feedback to ${email}...`);
-    console.log(`Subject: Your IELTS Writing Feedback - ${testTitle}`);
-    console.log(`Content: Hello ${studentName}, your writing test has been marked. Score: ${score}. Feedback: ${feedback}`);
-    
-    // In a real app, you'd use nodemailer or a service like SendGrid here.
-    // For this demo, we'll simulate success.
-    res.json({ success: true, message: "Feedback email sent successfully" });
-  });
-
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+  if (process.env.MONGODB_URI) {
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('Connected to MongoDB');
   } else {
-    app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
-    });
+    console.warn('MONGODB_URI not found. Running without DB.');
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
