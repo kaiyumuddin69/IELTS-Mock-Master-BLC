@@ -1,54 +1,46 @@
-import * as bcrypt from 'bcryptjs';
-import * as dotenv from 'dotenv';
+import "dotenv/config";
 import { PrismaClient } from '@prisma/client';
-
-dotenv.config();
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-async function seedAdmin() {
-  try {
-    const dbUrl = process.env.DATABASE_URL;
-    if (!dbUrl) {
-      console.error('DATABASE_URL is not defined in environment variables');
-      process.exit(1);
-    }
+async function main() {
+  const adminEmail = 'admin@ielts.com';
+  const adminPassword = 'adminblc123';
 
-    console.log('Connecting to Database for seeding...');
-    await prisma.$connect();
-    console.log('Connected to Database');
+  console.log('Seeding database...');
 
-    const adminEmail = 'admin@ielts.com';
-    const existingAdmin = await prisma.user.findUnique({
-      where: { email: adminEmail },
-    });
+  // Check if admin already exists
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail },
+  });
 
-    if (existingAdmin) {
-      console.log('Admin user already exists');
-      process.exit(0);
-    }
-
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-    const adminUser = await prisma.user.create({
-      data: {
-        name: 'System Admin',
-        email: adminEmail,
-        password: hashedPassword,
-        role: 'admin'
-      },
-    });
-
-    console.log('Admin user created successfully!');
-    console.log('Email: admin@ielts.com');
-    console.log('Password: admin123');
-    
-    process.exit(0);
-  } catch (error) {
-    console.error('Error seeding admin:', error);
-    process.exit(1);
-  } finally {
-    await prisma.$disconnect();
+  if (existingAdmin) {
+    console.log('Admin user already exists.');
+    return;
   }
+
+  // Hash password
+  const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
+  // Create admin user
+  const admin = await prisma.user.create({
+    data: {
+      email: adminEmail,
+      password: hashedPassword,
+      name: 'System Admin',
+      role: 'admin',
+    },
+  });
+
+  console.log('Admin user created successfully:', admin.email);
 }
 
-seedAdmin();
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

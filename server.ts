@@ -1,12 +1,12 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
-import * as dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcryptjs';
 import prisma from './src/lib/prisma';
-
-dotenv.config();
 
 const app = express();
 const PORT = 3000;

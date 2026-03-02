@@ -6,48 +6,60 @@ datasource db {
   provider = "postgresql"
 }
 
+// 1. User Model (Student & Admin)
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String
-  role      String   @default("student") // admin, student, batch_student
   name      String?
+  role      String   @default("student") // 'admin' or 'student'
+  createdAt DateTime @default(now())
+  
+  // Relations
+  results   Result[]
   batchId   String?
   batch     Batch?   @relation(fields: [batchId], references: [id])
-  results   Result[]
-  createdAt DateTime @default(now())
 }
 
+// 2. Batch Model (For Grouping Students)
 model Batch {
   id        String   @id @default(uuid())
   name      String
-  startDate DateTime @default(now())
-  endDate   DateTime?
   users     User[]
-  tests     Test[]   @relation("BatchTests")
-  createdAt DateTime @default(now())
+  testIds   String[] // List of Test IDs assigned to this batch
 }
 
+// 3. Test Model (IELTS Exam Paper)
 model Test {
-  id        String   @id @default(uuid())
-  type      String   // reading, listening, writing, speaking
-  title     String
-  timeLimit Int      // in minutes
-  content   Json     // For passages, audio URLs, etc.
-  questions Json     // CRITICAL: stores complex nested arrays of questions
-  batches   Batch[]  @relation("BatchTests")
-  results   Result[]
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  title       String
+  type        String   // 'reading', 'listening', 'writing', 'speaking'
+  timeLimit   Int      // In minutes
+  
+  // Content: Passage text (Reading) or Audio URL (Listening)
+  content     Json?    
+  
+  // Questions: The complex IELTS questions (MCQ, Fill gaps etc.)
+  questions   Json     
+  
+  createdAt   DateTime @default(now())
+  results     Result[]
 }
 
+// 4. Result Model (Student Marks)
 model Result {
-  id        String   @id @default(uuid())
-  score     Float?
-  studentId String
-  student   User     @relation(fields: [studentId], references: [id])
-  testId    String
-  test      Test     @relation(fields: [testId], references: [id])
-  answers   Json
-  feedback  String?
-  timestamp DateTime @default(now())
+  id          String   @id @default(uuid())
+  score       Float?
+  
+  // Answers given by student
+  answers     Json     
+  
+  feedback    String?
+  submittedAt DateTime @default(now())
+
+  // Relations
+  studentId   String
+  student     User     @relation(fields: [studentId], references: [id])
+  testId      String
+  test        Test     @relation(fields: [testId], references: [id])
 }
