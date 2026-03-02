@@ -1,12 +1,10 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import cors from 'cors';
 import * as dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcryptjs';
-
-import { User, Batch, Test, Result } from './models';
+import prisma from './src/lib/prisma';
 
 dotenv.config();
 
@@ -38,8 +36,14 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password, batchId } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ name, email, password: hashedPassword, batchId });
-    await user.save();
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        batchId: batchId || null,
+      },
+    });
     res.status(201).json({ message: 'User registered' });
   } catch (err: any) {
     res.status(400).json({ message: err.message });
@@ -49,12 +53,17 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email }).populate('batchId');
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { batch: true },
+    });
+    
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
-    const token = jwt.sign({ id: user._id, role: user.role, batchId: user.batchId?._id }, JWT_SECRET);
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role, batchId: user.batchId } });
+
+    const token = jwt.sign({ id: user.id, role: user.role, batchId: user.batchId }, JWT_SECRET);
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, batch: user.batch } });
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
@@ -64,11 +73,20 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/tests', authenticate, async (req: any, res) => {
   try {
     if (req.user.role === 'admin') {
-      const tests = await Test.find();
+      const tests = await prisma.test.findMany();
       return res.json(tests);
     }
-    const batch = await Batch.findById(req.user.batchId).populate('assignedTests');
-    res.json(batch?.assignedTests || []);
+    
+    if (!req.user.batchId) {
+      return res.json([]);
+    }
+
+    const batch = await prisma.batch.findUnique({
+      where: { id: req.user.batchId },
+      include: { tests: true },
+    });
+    
+    res.json(batch?.tests || []);
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
@@ -77,8 +95,12 @@ app.get('/api/tests', authenticate, async (req: any, res) => {
 // Results
 app.post('/api/results', authenticate, async (req: any, res) => {
   try {
-    const result = new Result({ ...req.body, userId: req.user.id });
-    await result.save();
+    const result = await prisma.result.create({
+      data: {
+        ...req.body,
+        studentId: req.user.id,
+      },
+    });
     res.status(201).json(result);
   } catch (err: any) {
     res.status(400).json({ message: err.message });
@@ -87,7 +109,11 @@ app.post('/api/results', authenticate, async (req: any, res) => {
 
 app.get('/api/results/me', authenticate, async (req: any, res) => {
   try {
-    const results = await Result.find({ userId: req.user.id }).populate('testId').sort({ timestamp: -1 });
+    const results = await prisma.result.findMany({
+      where: { studentId: req.user.id },
+      include: { test: true },
+      orderBy: { timestamp: 'desc' },
+    });
     res.json(results);
   } catch (err: any) {
     res.status(500).json({ message: err.message });
@@ -98,8 +124,9 @@ app.get('/api/results/me', authenticate, async (req: any, res) => {
 app.post('/api/tests', authenticate, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
   try {
-    const test = new Test(req.body);
-    await test.save();
+    const test = await prisma.test.create({
+      data: req.body,
+    });
     res.status(201).json(test);
   } catch (err: any) {
     res.status(400).json({ message: err.message });
@@ -109,7 +136,9 @@ app.post('/api/tests', authenticate, async (req: any, res) => {
 app.delete('/api/tests/:id', authenticate, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
   try {
-    await Test.findByIdAndDelete(req.params.id);
+    await prisma.test.delete({
+      where: { id: req.params.id },
+    });
     res.json({ message: 'Test deleted' });
   } catch (err: any) {
     res.status(500).json({ message: err.message });
@@ -120,7 +149,9 @@ app.delete('/api/tests/:id', authenticate, async (req: any, res) => {
 app.get('/api/batches', authenticate, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
   try {
-    const batches = await Batch.find().populate('assignedTests');
+    const batches = await prisma.batch.findMany({
+      include: { tests: true },
+    });
     res.json(batches);
   } catch (err: any) {
     res.status(500).json({ message: err.message });
@@ -130,8 +161,17 @@ app.get('/api/batches', authenticate, async (req: any, res) => {
 app.post('/api/batches', authenticate, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
   try {
-    const batch = new Batch(req.body);
-    await batch.save();
+    const { name, assignedTestIds, endDate } = req.body;
+    const batch = await prisma.batch.create({
+      data: {
+        name,
+        endDate: endDate ? new Date(endDate) : null,
+        tests: {
+          connect: assignedTestIds?.map((id: string) => ({ id })) || [],
+        },
+      },
+      include: { tests: true },
+    });
     res.status(201).json(batch);
   } catch (err: any) {
     res.status(400).json({ message: err.message });
@@ -141,7 +181,18 @@ app.post('/api/batches', authenticate, async (req: any, res) => {
 app.patch('/api/batches/:id', authenticate, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
   try {
-    const batch = await Batch.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const { name, assignedTestIds, endDate } = req.body;
+    const batch = await prisma.batch.update({
+      where: { id: req.params.id },
+      data: {
+        name,
+        endDate: endDate ? new Date(endDate) : null,
+        tests: {
+          set: assignedTestIds?.map((id: string) => ({ id })) || [],
+        },
+      },
+      include: { tests: true },
+    });
     res.json(batch);
   } catch (err: any) {
     res.status(400).json({ message: err.message });
@@ -151,7 +202,10 @@ app.patch('/api/batches/:id', authenticate, async (req: any, res) => {
 app.get('/api/admin/submissions', authenticate, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
   try {
-    const results = await Result.find().populate('userId').populate('testId').sort({ timestamp: -1 });
+    const results = await prisma.result.findMany({
+      include: { student: true, test: true },
+      orderBy: { timestamp: 'desc' },
+    });
     res.json(results);
   } catch (err: any) {
     res.status(500).json({ message: err.message });
@@ -161,7 +215,10 @@ app.get('/api/admin/submissions', authenticate, async (req: any, res) => {
 app.patch('/api/admin/submissions/:id', authenticate, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
   try {
-    const result = await Result.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const result = await prisma.result.update({
+      where: { id: req.params.id },
+      data: req.body,
+    });
     res.json(result);
   } catch (err: any) {
     res.status(400).json({ message: err.message });
@@ -171,9 +228,9 @@ app.patch('/api/admin/submissions/:id', authenticate, async (req: any, res) => {
 app.delete('/api/admin/clear-all', authenticate, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
   try {
-    await Test.deleteMany({});
-    await Result.deleteMany({});
-    await Batch.deleteMany({});
+    await prisma.result.deleteMany({});
+    await prisma.test.deleteMany({});
+    await prisma.batch.deleteMany({});
     res.json({ message: 'All data cleared' });
   } catch (err: any) {
     res.status(500).json({ message: err.message });
@@ -184,19 +241,17 @@ app.delete('/api/admin/clear-all', authenticate, async (req: any, res) => {
 
 async function startServer() {
   console.log('Starting server...');
-  console.log('Environment variables present:', Object.keys(process.env).filter(k => !k.includes('SECRET') && !k.includes('KEY') && !k.includes('PASSWORD')));
+  
+  const dbUrl = process.env.DATABASE_URL || '';
+  const maskedUrl = dbUrl.replace(/:([^:@]+)@/, ':****@');
+  console.log(`DATABASE_URL: ${maskedUrl}`);
+
   try {
-    if (process.env.MONGODB_URI) {
-      console.log('Connecting to MongoDB...');
-      await mongoose.connect(process.env.MONGODB_URI, {
-        serverSelectionTimeoutMS: 5000, // 5s timeout
-      });
-      console.log('Connected to MongoDB');
-    } else {
-      console.warn('MONGODB_URI not found. Running without DB.');
-    }
+    await prisma.$connect();
+    console.log('✅ Database Connected Successfully');
   } catch (err) {
-    console.error('MongoDB connection error:', err);
+    console.error('❌ Database connection error:', err);
+    // In production, we might want to exit, but in dev we might want to see the error
   }
 
   if (process.env.NODE_ENV !== 'production') {

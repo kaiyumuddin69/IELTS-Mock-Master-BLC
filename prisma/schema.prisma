@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   @default("student") // admin, student, batch_student
+  name      String?
+  batchId   String?
+  batch     Batch?   @relation(fields: [batchId], references: [id])
+  results   Result[]
+  createdAt DateTime @default(now())
+}
+
+model Batch {
+  id        String   @id @default(uuid())
+  name      String
+  startDate DateTime @default(now())
+  endDate   DateTime?
+  users     User[]
+  tests     Test[]   @relation("BatchTests")
+  createdAt DateTime @default(now())
+}
+
+model Test {
+  id        String   @id @default(uuid())
+  type      String   // reading, listening, writing, speaking
+  title     String
+  timeLimit Int      // in minutes
+  content   Json     // For passages, audio URLs, etc.
+  questions Json     // CRITICAL: stores complex nested arrays of questions
+  batches   Batch[]  @relation("BatchTests")
+  results   Result[]
+  createdAt DateTime @default(now())
+}
+
+model Result {
+  id        String   @id @default(uuid())
+  score     Float?
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id])
+  testId    String
+  test      Test     @relation(fields: [testId], references: [id])
+  answers   Json
+  feedback  String?
+  timestamp DateTime @default(now())
+}
