@@ -15,6 +15,22 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // Optional: redirect to login or reload
+      if (!window.location.pathname.includes('/login') && window.location.pathname !== '/') {
+        window.location.href = '/';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const authService = {
   login: async (credentials: any) => {
     const response = await api.post('/auth/login', credentials);
@@ -75,7 +91,7 @@ export const testService = {
 
 export const batchService = {
   getBatches: async () => {
-    const response = await api.get('/batches');
+    const response = await api.get('/public/batches');
     return response.data;
   },
   createBatch: async (batchData: any) => {

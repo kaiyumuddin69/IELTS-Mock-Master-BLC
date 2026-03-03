@@ -145,6 +145,24 @@ app.delete('/api/tests/:id', authenticate, async (req: any, res) => {
   }
 });
 
+// Public: Get Batches for Landing Page
+app.get('/api/public/batches', async (req, res) => {
+  try {
+    const batches = await prisma.batch.findMany({
+      select: {
+        id: true,
+        name: true,
+        startDate: true,
+        endDate: true,
+      },
+      orderBy: { startDate: 'asc' },
+    });
+    res.json(batches);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Admin: Manage Batches
 app.get('/api/batches', authenticate, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
