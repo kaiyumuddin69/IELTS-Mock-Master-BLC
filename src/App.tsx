@@ -43,6 +43,9 @@ import ReadingTest from './components/reading/ReadingTest';
 import InstructorPanel from './components/instructor/InstructorPanel';
 import StudentDashboard from './components/student/StudentDashboard';
 
+import LandingPage from './pages/LandingPage';
+import Login from './pages/Login';
+
 // --- Components ---
 
 const BLCLogo = ({ className = "" }: { className?: string }) => (
@@ -253,7 +256,7 @@ const AudioPlayer = ({ src, onEnded }: { src: string; onEnded?: () => void }) =>
 // --- Main App ---
 
 export default function App() {
-  const [view, setView] = useState<'landing' | 'instructions' | 'test' | 'result' | 'instructor'>('landing');
+  const [view, setView] = useState<'landing' | 'login' | 'instructions' | 'test' | 'result' | 'instructor'>('landing');
   const [activeModule, setActiveModule] = useState<string | null>(null);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -274,7 +277,6 @@ export default function App() {
   const [speakingTests, setSpeakingTests] = useState<any[]>([]);
   const [selectedWritingTest, setSelectedWritingTest] = useState<WritingTest | null>(null);
   const [selectedCustomTest, setSelectedCustomTest] = useState<TestModule | null>(null);
-  const [batchId, setBatchId] = useState('');
 
   const fetchTests = async () => {
     try {
@@ -297,14 +299,6 @@ export default function App() {
     }
   };
   
-  // Auth Modal State
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [authError, setAuthError] = useState('');
-
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
     if (currentUser) {
@@ -314,30 +308,6 @@ export default function App() {
     }
     setLoading(false);
   }, []);
-
-  const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError('');
-    try {
-      if (authMode === 'signup') {
-        await authService.register({ name: displayName, email, password, batchId });
-        await authService.login({ email, password });
-      } else {
-        await authService.login({ email, password });
-      }
-      const currentUser = authService.getCurrentUser();
-      setUser(currentUser);
-      fetchTests();
-      fetchUserResults();
-      setShowAuthModal(false);
-      setEmail('');
-      setPassword('');
-      setDisplayName('');
-      setBatchId('');
-    } catch (error: any) {
-      setAuthError(error.response?.data?.message || error.message);
-    }
-  };
 
   const logout = () => {
     authService.logout();
@@ -389,7 +359,7 @@ export default function App() {
 
   const startTest = (moduleKey: string, customTest?: TestModule) => {
     if (!user) {
-      setShowAuthModal(true);
+      setView('login');
       return;
     }
     setActiveModule(moduleKey);
@@ -753,208 +723,44 @@ export default function App() {
   }
 
   if (view === 'landing') {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col">
-        <header className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center sticky top-0 z-50">
-          <div className="flex items-center gap-3">
-            <div className="ielts-logo-box px-2 py-1.5 text-xl">IELTS</div>
-            <div className="h-6 w-px bg-slate-200" />
-            <BLCLogo />
-            <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Mock Master</span>
-          </div>
-          <div className="flex items-center gap-6">
-            {user && user.role === 'admin' && (
-              <button 
-                onClick={() => setView('instructor')}
-                className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-sm transition-colors"
-              >
-                <Settings size={18} />
-                Instructor Panel
-              </button>
-            )}
-            {user ? (
+    if (user) {
+      return (
+        <div className="h-screen flex flex-col bg-white overflow-hidden">
+          <header className="h-16 border-b border-slate-200 px-8 flex items-center justify-between bg-white shrink-0">
+            <div className="flex items-center gap-3">
+              <BLCLogo />
+              <div className="h-6 w-px bg-slate-200" />
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Student Portal</span>
+            </div>
+            <div className="flex items-center gap-6">
+              {user.role === 'admin' && (
+                <button 
+                  onClick={() => setView('instructor')}
+                  className="flex items-center gap-2 text-slate-500 hover:text-ielts-blue font-bold text-sm transition-colors"
+                >
+                  <Settings size={18} />
+                  Instructor Panel
+                </button>
+              )}
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <div className="text-xs text-slate-400 font-bold uppercase tracking-widest">Candidate</div>
-                  <div className="text-sm text-slate-700 font-semibold">{user.displayName || user.email}</div>
+                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Candidate</div>
+                  <div className="text-sm text-slate-900 font-bold">{user.name || user.email}</div>
                 </div>
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt="Profile" className="w-10 h-10 rounded-full border border-slate-200" />
-                ) : (
-                  <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-slate-500">
-                    <Mic size={20} />
-                  </div>
-                )}
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-ielts-blue font-bold border border-blue-100">
+                  {user.name?.[0] || 'U'}
+                </div>
                 <button 
                   onClick={logout}
-                  className="text-xs font-bold text-rose-500 hover:text-rose-600 uppercase tracking-widest"
+                  className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                  title="Logout"
                 >
-                  Logout
+                  <Play className="rotate-180" size={18} />
                 </button>
               </div>
-            ) : (
-              <button 
-                onClick={() => setShowAuthModal(true)}
-                className="bg-ielts-blue text-white px-6 py-2 rounded-full font-bold text-sm hover:bg-blue-700 transition-all shadow-sm"
-              >
-                Login / Signup
-              </button>
-            )}
-          </div>
-        </header>
-
-        {/* Auth Modal */}
-        <AnimatePresence>
-          {showAuthModal && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-4"
-            >
-              <motion.div 
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                className="bg-white rounded-[48px] overflow-hidden max-w-4xl w-full shadow-premium flex flex-col md:flex-row relative"
-              >
-                <button 
-                  onClick={() => setShowAuthModal(false)}
-                  className="absolute top-8 right-8 text-slate-400 hover:text-slate-600 transition-colors z-20"
-                >
-                  <X size={28} />
-                </button>
-
-                {/* Left Side: Branding/Info */}
-                <div className="md:w-5/12 bg-ielts-blue p-12 text-white flex flex-col justify-between relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-                    <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-                  </div>
-                  
-                  <div className="relative z-10">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="ielts-logo-box px-3 py-1 text-2xl shadow-lg">IELTS</div>
-                      <BLCLogo className="brightness-0 invert" />
-                    </div>
-                    <h3 className="text-4xl font-black mb-4 leading-tight">Master Your IELTS Journey</h3>
-                    <p className="text-blue-100 text-lg font-medium opacity-80">Join thousands of candidates achieving their dream scores with our authentic simulation platform.</p>
-                  </div>
-
-                  <div className="relative z-10 space-y-4">
-                    <div className="flex items-center gap-3 text-sm font-bold">
-                      <div className="w-5 h-5 rounded-full bg-blue-400/30 flex items-center justify-center"><CheckCircle size={12} /></div>
-                      Authentic Exam Interface
-                    </div>
-                    <div className="flex items-center gap-3 text-sm font-bold">
-                      <div className="w-5 h-5 rounded-full bg-blue-400/30 flex items-center justify-center"><CheckCircle size={12} /></div>
-                      Real-time Performance Analysis
-                    </div>
-                    <div className="flex items-center gap-3 text-sm font-bold">
-                      <div className="w-5 h-5 rounded-full bg-blue-400/30 flex items-center justify-center"><CheckCircle size={12} /></div>
-                      Secure Cloud Progress Tracking
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Side: Form */}
-                <div className="md:w-7/12 p-12 md:p-16 bg-white">
-                  <div className="max-w-md mx-auto">
-                    <div className="mb-10">
-                      <h3 className="text-3xl font-black text-slate-900 mb-2">
-                        {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
-                      </h3>
-                      <p className="text-slate-500 font-medium">
-                        {authMode === 'login' ? 'Sign in to access your practice history' : 'Start your journey to a Band 9.0'}
-                      </p>
-                    </div>
-
-                    <form onSubmit={handleEmailAuth} className="space-y-5">
-                      {authMode === 'signup' && (
-                        <>
-                          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Full Name</label>
-                            <input 
-                              type="text" 
-                              required
-                              value={displayName}
-                              onChange={(e) => setDisplayName(e.target.value)}
-                              className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-ielts-blue/30 outline-none transition-all font-medium text-slate-700"
-                              placeholder="e.g. John Smith"
-                            />
-                          </motion.div>
-                          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Batch ID (Optional)</label>
-                            <input 
-                              type="text" 
-                              value={batchId}
-                              onChange={(e) => setBatchId(e.target.value)}
-                              className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-ielts-blue/30 outline-none transition-all font-medium text-slate-700"
-                              placeholder="e.g. 65f123..."
-                            />
-                          </motion.div>
-                        </>
-                      )}
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Email Address</label>
-                        <input 
-                          type="email" 
-                          required
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-ielts-blue/30 outline-none transition-all font-medium text-slate-700"
-                          placeholder="name@example.com"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Password</label>
-                        <input 
-                          type="password" 
-                          required
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-ielts-blue/30 outline-none transition-all font-medium text-slate-700"
-                          placeholder="••••••••"
-                        />
-                      </div>
-
-                      {authError && (
-                        <motion.p 
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="text-rose-500 text-xs font-bold text-center bg-rose-50 p-4 rounded-2xl border border-rose-100"
-                        >
-                          {authError}
-                        </motion.p>
-                      )}
-
-                      <button 
-                        type="submit"
-                        className="w-full bg-ielts-blue text-white py-5 rounded-2xl font-black text-lg hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 mt-4 active:scale-[0.98]"
-                      >
-                        {authMode === 'login' ? 'Sign In' : 'Sign Up'}
-                      </button>
-                    </form>
-
-                    <p className="text-center mt-10 text-sm font-medium text-slate-500">
-                      {authMode === 'login' ? "New to IELTS BLC?" : "Already have an account?"}
-                      <button 
-                        onClick={() => {
-                          setAuthMode(authMode === 'login' ? 'signup' : 'login');
-                          setAuthError('');
-                        }}
-                        className="ml-2 text-ielts-blue font-black hover:underline"
-                      >
-                        {authMode === 'login' ? 'Create Account' : 'Sign In'}
-                      </button>
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <main className="flex-1 flex flex-col">
-          {user ? (
+            </div>
+          </header>
+          <div className="flex-1 overflow-hidden">
             <StudentDashboard 
               user={user}
               practiceTasks={practiceTasks}
@@ -973,52 +779,39 @@ export default function App() {
               isAddingTask={isAddingTask}
               startTest={startTest}
             />
-          ) : (
-            <div className="max-w-6xl mx-auto w-full p-8 py-24">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-12 text-center"
-              >
-                <h2 className="text-7xl font-black text-slate-900 mb-8 tracking-tighter leading-[0.9]">
-                  Master Your <br/><span className="text-ielts-blue">IELTS Journey</span>
-                </h2>
-                <p className="text-slate-500 text-2xl max-w-2xl mx-auto leading-relaxed font-medium">
-                  Experience the most authentic computer-delivered IELTS environment with real-time feedback and AI-powered insights.
-                </p>
-                <div className="mt-12 flex justify-center gap-6">
-                  <button 
-                    onClick={() => setShowAuthModal(true)}
-                    className="px-10 py-5 bg-ielts-blue text-white rounded-[24px] font-black text-xl hover:bg-blue-700 transition-all shadow-2xl shadow-blue-200 active:scale-95"
-                  >
-                    Get Started Free
-                  </button>
-                  <button className="px-10 py-5 bg-white border-2 border-slate-100 text-slate-600 rounded-[24px] font-black text-xl hover:bg-slate-50 transition-all active:scale-95">
-                    View Demo
-                  </button>
-                </div>
-              </motion.div>
+          </div>
+        </div>
+      );
+    }
 
-              {/* Feature Grid */}
-              <div className="grid md:grid-cols-3 gap-8 mt-24">
-                {[
-                  { title: 'Authentic Interface', desc: 'Identical to the real computer-delivered IELTS exam software.', icon: Layout },
-                  { title: 'AI Evaluation', desc: 'Get instant band score estimates for your writing and speaking.', icon: Star },
-                  { title: 'Full Modules', desc: 'Complete practice material for Reading, Listening, Writing, and Speaking.', icon: BookOpen },
-                ].map((f, i) => (
-                  <div key={i} className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-sm">
-                    <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-ielts-blue mb-6">
-                      <f.icon size={28} />
-                    </div>
-                    <h4 className="text-2xl font-black text-slate-900 mb-3">{f.title}</h4>
-                    <p className="text-slate-500 font-medium leading-relaxed">{f.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </main>
-      </div>
+    return (
+      <LandingPage 
+        onLoginClick={() => setView('login')} 
+        onAuthSuccess={(userData) => {
+          setUser(userData);
+          fetchTests();
+          fetchUserResults();
+          setView('landing');
+        }}
+      />
+    );
+  }
+
+  if (view === 'login') {
+    if (user) {
+      setView('landing');
+      return null;
+    }
+    return (
+      <Login 
+        onBack={() => setView('landing')}
+        onAuthSuccess={(userData) => {
+          setUser(userData);
+          fetchTests();
+          fetchUserResults();
+          setView('landing');
+        }}
+      />
     );
   }
 

@@ -112,7 +112,7 @@ app.get('/api/results/me', authenticate, async (req: any, res) => {
     const results = await prisma.result.findMany({
       where: { studentId: req.user.id },
       include: { test: true },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { submittedAt: 'desc' },
     });
     res.json(results);
   } catch (err: any) {
@@ -204,7 +204,7 @@ app.get('/api/admin/submissions', authenticate, async (req: any, res) => {
   try {
     const results = await prisma.result.findMany({
       include: { student: true, test: true },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { submittedAt: 'desc' },
     });
     res.json(results);
   } catch (err: any) {
