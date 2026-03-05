@@ -159,7 +159,12 @@ app.get('/api/public/batches', async (req, res) => {
     });
     res.json(batches);
   } catch (err: any) {
-    res.status(500).json({ message: err.message });
+    console.error('Error fetching public batches:', err);
+    res.status(500).json({ 
+      message: 'Internal Server Error', 
+      error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 });
 
@@ -259,7 +264,14 @@ app.delete('/api/admin/clear-all', authenticate, async (req: any, res) => {
 
 async function startServer() {
   console.log('Starting server...');
+  console.log('Current working directory:', process.cwd());
   
+  const fs = await import('fs');
+  const path = await import('path');
+  const dbPath = path.resolve('prisma/dev.db');
+  console.log('Database file path:', dbPath);
+  console.log('Database file exists:', fs.existsSync(dbPath));
+
   const dbUrl = process.env.DATABASE_URL || '';
   const maskedUrl = dbUrl.replace(/:([^:@]+)@/, ':****@');
   console.log(`DATABASE_URL: ${maskedUrl}`);
