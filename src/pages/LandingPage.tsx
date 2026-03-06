@@ -38,7 +38,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onAuthSuccess }
     const fetchBatches = async () => {
       try {
         const data = await batchService.getBatches();
-        setBatches(data);
+        setBatches(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error('Failed to fetch batches', err);
       } finally {

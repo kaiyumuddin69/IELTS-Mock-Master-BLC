@@ -1,3 +1,4 @@
+
 import "dotenv/config";
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
@@ -10,84 +11,106 @@ async function main() {
 
   console.log('Seeding database...');
 
-  // Check if admin already exists
-  const existingAdmin = await prisma.user.findUnique({
-    where: { email: adminEmail },
-  });
-
-  if (existingAdmin) {
-    console.log('Admin user already exists.');
-    return;
-  }
-
-  // Hash password
+  // 1. Create Admin
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
-
-  // Create admin user
-  const admin = await prisma.user.create({
-    data: {
+  const admin = await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: { password: hashedPassword },
+    create: {
       email: adminEmail,
       password: hashedPassword,
       name: 'System Admin',
-      role: 'admin',
+      role: 'ADMIN',
     },
   });
 
-  // Create some sample tests
-  const test1 = await prisma.test.upsert({
+  // 2. Create Sample Test
+  const test = await prisma.test.upsert({
     where: { id: 'sample-reading-1' },
     update: {},
     create: {
       id: 'sample-reading-1',
       title: 'Academic Reading Practice 1',
-      type: 'reading',
-      timeLimit: 60,
-      content: { passage: "The history of the internet..." },
-      questions: [
-        { id: 'q1', type: 'mcq', question: "When was the internet invented?", options: ["1960s", "1970s", "1980s", "1990s"], answer: "1960s" }
-      ]
+      type: 'READING',
+      duration: 60,
+      content: { 
+        passages: [
+          { title: "The History of the Internet", text: "The internet began in the 1960s as a way for government researchers to share information..." }
+        ] 
+      },
     }
   });
 
-  const test2 = await prisma.test.upsert({
+  // 3. Create Sample Questions
+  await prisma.question.upsert({
+    where: { id: 'q1' },
+    update: {},
+    create: {
+      id: 'q1',
+      testId: test.id,
+      type: 'MCQ',
+      order: 1,
+      structure: {
+        prompt: "When did the internet begin?",
+        options: ["1950s", "1960s", "1970s", "1980s"]
+      },
+      correctAnswers: "1960s"
+    }
+  });
+
+  await prisma.question.upsert({
+    where: { id: 'q2' },
+    update: {},
+    create: {
+      id: 'q2',
+      testId: test.id,
+      type: 'FILL_GAPS',
+      order: 2,
+      structure: {
+        prompt: "The internet was created for ______ researchers."
+      },
+      correctAnswers: "government"
+    }
+  });
+
+  // 4. Create Writing Test
+  await prisma.test.upsert({
     where: { id: 'sample-writing-1' },
     update: {},
     create: {
       id: 'sample-writing-1',
-      title: 'Academic Writing Practice 1',
-      type: 'writing',
-      timeLimit: 60,
-      content: { task1: "Describe the chart...", task2: "Discuss the pros and cons..." },
-      questions: []
-    }
-  });
-
-  // Create some sample batches
-  const batch1 = await prisma.batch.upsert({
-    where: { id: 'batch-jan-2024' },
-    update: {},
-    create: {
-      id: 'batch-jan-2024',
-      name: 'IELTS Success Batch - January 2024',
-      startDate: new Date('2024-01-15'),
-      endDate: new Date('2024-04-15'),
-      tests: {
-        connect: [{ id: test1.id }, { id: test2.id }]
+      title: 'General Writing Task 1',
+      type: 'WRITING',
+      duration: 60,
+      content: {
+        instruction: "You should spend about 20 minutes on this task. Write at least 150 words.",
+        prompt: "You recently stayed at a hotel and were unhappy with the service. Write a letter to the manager to complain."
       }
     }
   });
 
-  const batch2 = await prisma.batch.upsert({
-    where: { id: 'batch-feb-2024' },
+  // 5. Create Sample Batches
+  await prisma.batch.upsert({
+    where: { id: 'batch-1' },
     update: {},
     create: {
-      id: 'batch-feb-2024',
-      name: 'IELTS Intensive - February 2024',
-      startDate: new Date('2024-02-01'),
-      endDate: new Date('2024-03-01'),
-      tests: {
-        connect: [{ id: test1.id }]
-      }
+      id: 'batch-1',
+      name: 'Academic Mastery - April 2026',
+      description: 'Intensive academic preparation for high band scores.',
+      startDate: new Date('2026-04-01'),
+      type: 'ACADEMIC'
+    }
+  });
+
+  await prisma.batch.upsert({
+    where: { id: 'batch-2' },
+    update: {},
+    create: {
+      id: 'batch-2',
+      name: 'General Training - May 2026',
+      description: 'Comprehensive general training for immigration and work.',
+      startDate: new Date('2026-05-15'),
+      type: 'GENERAL'
     }
   });
 

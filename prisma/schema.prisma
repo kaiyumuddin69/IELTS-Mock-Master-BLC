@@ -7,63 +7,84 @@ datasource db {
   url      = "file:./dev.db"
 }
 
-// 1. User Model (Student & Admin)
+// 1. User Model
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String
-  name      String?
-  role      String   @default("student") // 'admin' or 'student'
+  name      String
+  role      String   @default("STUDENT") // ADMIN, STUDENT
   createdAt DateTime @default(now())
-  
-  // Relations
+  updatedAt DateTime @updatedAt
+
   results   Result[]
   batchId   String?
   batch     Batch?   @relation(fields: [batchId], references: [id])
 }
 
-// 2. Batch Model (For Grouping Students)
+// 2. Batch Model
 model Batch {
-  id        String   @id @default(uuid())
-  name      String
-  startDate DateTime @default(now())
-  endDate   DateTime?
-  users     User[]
-  tests     Test[]   @relation("BatchTests")
-}
-
-// 3. Test Model (IELTS Exam Paper)
-model Test {
   id          String   @id @default(uuid())
-  title       String
-  type        String   // 'reading', 'listening', 'writing', 'speaking'
-  timeLimit   Int      // In minutes
-  
-  // Content: Passage text (Reading) or Audio URL (Listening)
-  content     Json?    
-  
-  // Questions: The complex IELTS questions (MCQ, Fill gaps etc.)
-  questions   Json     
-  
+  name        String
+  description String?
+  startDate   DateTime
+  type        String   @default("ACADEMIC") // ACADEMIC, GENERAL
+  students    User[]
   createdAt   DateTime @default(now())
-  results     Result[]
-  batches     Batch[]  @relation("BatchTests")
 }
 
-// 4. Result Model (Student Marks)
+// 3. Test Model
+model Test {
+  id          String     @id @default(uuid())
+  title       String
+  type        String     // LISTENING, READING, WRITING
+  duration    Int        // in minutes
+  content     Json       // For Reading: { passages: [...] }, For Listening: { audioUrl: "...", sections: [...] }
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  questions   Question[]
+  results     Result[]
+}
+
+// 3. Question Model
+model Question {
+  id          String   @id @default(uuid())
+  testId      String
+  test        Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  
+  type        String   // MCQ, MAP_LABELING, MATCHING, FILL_GAPS, TRUE_FALSE_NOT_GIVEN
+  order       Int      // Sequence in the test
+  
+  // JSONB structure for dynamic data
+  // Example for Map: { imageUrl: "...", labels: [{ x: 10, y: 20, id: "L1" }] }
+  // Example for MCQ: { prompt: "...", options: ["A", "B", "C"] }
+  structure   Json     
+  
+  // Correct answers for the QuestionEngine to validate
+  // Example: { "L1": "Library", "1": "A" }
+  correctAnswers Json
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 4. Result Model
 model Result {
   id          String   @id @default(uuid())
-  score       Float?
-  
-  // Answers given by student
-  answers     Json     
-  
-  feedback    String?
-  submittedAt DateTime @default(now())
-
-  // Relations
-  studentId   String
-  student     User     @relation(fields: [studentId], references: [id])
   testId      String
   test        Test     @relation(fields: [testId], references: [id])
+  studentId   String
+  student     User     @relation(fields: [studentId], references: [id])
+  
+  // Student's submitted answers
+  answers     Json     
+  
+  score       Float?   // Raw score (e.g., 32/40)
+  bandScore   Float?   // IELTS Band (e.g., 7.5)
+  feedback    String?
+  
+  status      String   @default("COMPLETED") // COMPLETED, EVALUATING
+  
+  submittedAt DateTime @default(now())
 }

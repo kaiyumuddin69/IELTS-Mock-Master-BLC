@@ -185,26 +185,33 @@ export default function StudentDashboard({
                         <td className="px-8 py-6">
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                              res.module === 'reading' ? 'bg-emerald-50 text-emerald-600' :
-                              res.module === 'listening' ? 'bg-blue-50 text-blue-600' :
+                              res.test?.type === 'READING' ? 'bg-emerald-50 text-emerald-600' :
+                              res.test?.type === 'LISTENING' ? 'bg-blue-50 text-blue-600' :
                               'bg-purple-50 text-purple-600'
                             }`}>
-                              {res.module === 'reading' && <BookOpen size={14} />}
-                              {res.module === 'listening' && <Headphones size={14} />}
-                              {res.module === 'writing' && <PenTool size={14} />}
-                              {res.module === 'speaking' && <Mic size={14} />}
+                              {res.test?.type === 'READING' && <BookOpen size={14} />}
+                              {res.test?.type === 'LISTENING' && <Headphones size={14} />}
+                              {res.test?.type === 'WRITING' && <PenTool size={14} />}
                             </div>
-                            <span className="font-bold text-slate-700 capitalize">{res.module}</span>
+                            <span className="font-bold text-slate-700 capitalize">{res.test?.type?.toLowerCase()}</span>
                           </div>
                         </td>
-                        <td className="px-8 py-6 font-bold text-slate-600">{res.score} / {res.total}</td>
+                        <td className="px-8 py-6 font-bold text-slate-600">{res.score} / {res.test?.questions?.length || 40}</td>
                         <td className="px-8 py-6">
                           <span className="px-3 py-1 bg-ielts-blue/10 text-ielts-blue rounded-full text-xs font-black">
-                            {((res.score / res.total) * 9).toFixed(1)}
+                            {res.bandScore || 'N/A'}
                           </span>
                         </td>
                         <td className="px-8 py-6 text-slate-400 text-sm font-medium">
-                          {res.timestamp?.toDate ? res.timestamp.toDate().toLocaleDateString() : 'Recent'}
+                          {new Date(res.submittedAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-8 py-6 text-right">
+                          <button 
+                            onClick={() => window.location.href = `/result/${res.id}`}
+                            className="text-ielts-blue text-xs font-bold hover:underline"
+                          >
+                            View Details
+                          </button>
                         </td>
                       </tr>
                     ))}

@@ -59,6 +59,10 @@ export const testService = {
     const response = await api.get('/tests');
     return response.data;
   },
+  getTestById: async (id: string) => {
+    const response = await api.get(`/tests/${id}`);
+    return response.data;
+  },
   createTest: async (testData: any) => {
     const response = await api.post('/tests', testData);
     return response.data;
@@ -73,6 +77,10 @@ export const testService = {
   },
   getMyResults: async () => {
     const response = await api.get('/results/me');
+    return response.data;
+  },
+  getResultById: async (id: string) => {
+    const response = await api.get(`/results/${id}`);
     return response.data;
   },
   getAdminSubmissions: async () => {
