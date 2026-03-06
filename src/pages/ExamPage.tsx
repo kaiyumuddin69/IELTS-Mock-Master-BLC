@@ -64,8 +64,29 @@ export default function ExamPage() {
   const [test, setTest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [reviewList, setReviewList] = useState<Record<string, boolean>>({});
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        setShowWarning(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Prevent right click
+    const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+    document.addEventListener('contextmenu', handleContextMenu);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchTest = async () => {
@@ -82,12 +103,28 @@ export default function ExamPage() {
     fetchTest();
   }, [testId, navigate]);
 
+  useEffect(() => {
+    const saved = localStorage.getItem(`ielts_exam_${testId}`);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setAnswers(parsed.answers || {});
+      setReviewList(parsed.reviewList || {});
+    }
+  }, [testId]);
+
+  useEffect(() => {
+    if (Object.keys(answers).length > 0 || Object.keys(reviewList).length > 0) {
+      localStorage.setItem(`ielts_exam_${testId}`, JSON.stringify({ answers, reviewList }));
+    }
+  }, [answers, reviewList, testId]);
+
   const handleSubmit = async () => {
     try {
       await testService.submitResult({
         testId: testId!,
         answers
       });
+      localStorage.removeItem(`ielts_exam_${testId}`);
       navigate('/student/dashboard');
     } catch (error) {
       console.error("Failed to submit test", error);
@@ -102,24 +139,55 @@ export default function ExamPage() {
   
   if (!test) return <div className="flex h-screen items-center justify-center">Test not found</div>;
 
+  const questions = test.questions || [];
+  const currentQuestion = questions[currentQuestionIdx];
+
   const renderQuestion = (q: any, idx: number) => {
+    if (!q) return null;
     switch (q.type) {
       case 'MCQ':
         return (
-          <div key={q.id} className="mb-8 p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
-            <p className="text-lg font-bold mb-4">{idx + 1}. {q.structure.prompt}</p>
-            <div className="space-y-2">
+          <div key={q.id} className="p-6">
+            <p className="text-lg font-bold mb-6">{idx + 1}. {q.structure.prompt}</p>
+            <div className="space-y-3">
               {q.structure.options?.map((opt: string) => (
                 <button
                   key={opt}
                   onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt }))}
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                  className={`w-full text-left p-4 rounded-lg border transition-all flex items-center gap-4 ${
                     answers[q.id] === opt 
-                      ? 'border-ielts-blue bg-blue-50' 
-                      : 'border-slate-100 hover:border-slate-200'
+                      ? 'border-ielts-blue bg-ielts-light-blue shadow-sm' 
+                      : 'border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <span className="font-medium">{opt}</span>
+                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${answers[q.id] === opt ? 'border-ielts-blue' : 'border-slate-400'}`}>
+                    {answers[q.id] === opt && <div className="w-2.5 h-2.5 rounded-full bg-ielts-blue" />}
+                  </div>
+                  <span className="font-medium text-slate-700">{opt}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      case 'TRUE_FALSE':
+        return (
+          <div key={q.id} className="p-6">
+            <p className="text-lg font-bold mb-6">{idx + 1}. {q.structure.prompt}</p>
+            <div className="flex flex-col gap-3">
+              {['TRUE', 'FALSE', 'NOT GIVEN'].map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt }))}
+                  className={`w-full text-left p-4 rounded-lg border transition-all flex items-center gap-4 ${
+                    answers[q.id] === opt 
+                      ? 'border-ielts-blue bg-ielts-light-blue shadow-sm' 
+                      : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${answers[q.id] === opt ? 'border-ielts-blue' : 'border-slate-400'}`}>
+                    {answers[q.id] === opt && <div className="w-2.5 h-2.5 rounded-full bg-ielts-blue" />}
+                  </div>
+                  <span className="font-medium text-slate-700">{opt}</span>
                 </button>
               ))}
             </div>
@@ -127,11 +195,11 @@ export default function ExamPage() {
         );
       case 'FILL_GAPS':
         return (
-          <div key={q.id} className="mb-8 p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
-            <p className="text-lg font-bold mb-4">{idx + 1}. {q.structure.prompt}</p>
+          <div key={q.id} className="p-6">
+            <p className="text-lg font-bold mb-6">{idx + 1}. {q.structure.prompt}</p>
             <input 
               type="text"
-              className="w-full p-4 rounded-xl border-2 border-slate-100 focus:border-ielts-blue outline-none transition-all"
+              className="w-full p-4 rounded-lg border border-slate-300 focus:border-ielts-blue outline-none transition-all font-medium"
               placeholder="Type your answer..."
               value={answers[q.id] || ''}
               onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
@@ -145,34 +213,62 @@ export default function ExamPage() {
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden select-none">
+      {/* Warning Modal */}
+      <AnimatePresence>
+        {showWarning && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-2xl p-10 max-w-md w-full text-center shadow-2xl"
+            >
+              <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <AlertTriangle size={40} />
+              </div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tighter mb-4">Security Warning</h2>
+              <p className="text-slate-500 mb-8 leading-relaxed">
+                Switching tabs or windows is not allowed during the exam. This incident has been logged. Please return to your test immediately.
+              </p>
+              <button 
+                onClick={() => setShowWarning(false)}
+                className="w-full py-4 bg-ielts-blue text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/20"
+              >
+                Return to Test
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
-      <header className="ielts-test-header !h-14 border-b border-slate-200 px-6 flex items-center justify-between bg-white z-50">
-        <div className="flex items-center gap-6">
+      <header className="ielts-test-header">
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-1">
-            <div className="bg-ielts-red text-white p-1 font-bold text-lg leading-none rounded-sm flex items-center justify-center w-8 h-8">I</div>
-            <span className="text-ielts-red font-bold text-xl tracking-tighter">IELTS</span>
+            <div className="ielts-logo-box">I</div>
+            <span className="text-ielts-red font-bold text-lg tracking-tighter">IELTS</span>
           </div>
-          <div className="h-8 w-px bg-slate-200" />
-          <BLCLogo />
-          <div className="h-8 w-px bg-slate-200" />
-          <div className="flex items-center gap-2 text-slate-500">
-            {test.type === 'READING' && <BookOpen size={18} />}
-            {test.type === 'LISTENING' && <Headphones size={18} />}
-            {test.type === 'WRITING' && <FileText size={18} />}
-            <span className="text-xs font-black uppercase tracking-widest">{test.type}</span>
-          </div>
+          <div className="h-6 w-px bg-slate-300" />
+          <div className="text-slate-600 font-bold text-xs uppercase tracking-wider">{test.title}</div>
         </div>
         
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 text-slate-500 bg-slate-50 px-4 py-1.5 rounded-full border border-slate-200">
-            <Clock size={16} className="text-ielts-blue" />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-slate-700 bg-slate-100 px-3 py-1 rounded border border-slate-300">
+            <Clock size={14} className="text-ielts-blue" />
             <Timer duration={test.duration || 60} onTimeUp={handleSubmit} />
           </div>
+          <div className="h-6 w-px bg-slate-300" />
+          <button className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-600"><HelpCircle size={18} /></button>
+          <button className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-600"><Settings size={18} /></button>
           <button 
             onClick={handleSubmit}
-            className="bg-ielts-blue text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-sm"
+            className="bg-ielts-blue text-white px-4 py-1.5 rounded text-xs font-bold hover:bg-blue-700 transition-all shadow-sm"
           >
-            Finish
+            Finish Test
           </button>
         </div>
       </header>
@@ -182,26 +278,26 @@ export default function ExamPage() {
         {test.type === 'READING' || test.type === 'WRITING' ? (
           <PanelGroup direction="horizontal">
             <Panel defaultSize={50} minSize={30}>
-              <div className="h-full overflow-y-auto p-8 bg-slate-50/50 border-r border-slate-200 ielts-scrollbar">
+              <div className="h-full overflow-y-auto p-10 bg-white ielts-scrollbar">
                 <div className="max-w-3xl mx-auto">
                   {test.type === 'READING' ? (
                     test.content.passages?.map((p: any, i: number) => (
                       <div key={i} className="mb-12">
-                        <h2 className="text-2xl font-black mb-6 text-slate-900">{p.title}</h2>
-                        <div className="prose prose-slate max-w-none text-lg leading-relaxed text-slate-700 whitespace-pre-wrap">
+                        <h2 className="text-2xl font-black mb-8 text-slate-900 leading-tight">{p.title}</h2>
+                        <div className="prose prose-slate max-w-none text-[17px] leading-[1.8] text-slate-700 whitespace-pre-wrap font-serif">
                           {p.text}
                         </div>
                       </div>
                     ))
                   ) : (
                     <div className="mb-12">
-                      <h2 className="text-2xl font-black mb-6 text-slate-900">Writing Task</h2>
-                      <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 mb-8">
-                        <p className="text-slate-700 font-medium leading-relaxed">
-                          {test.content.instruction || "You should spend about 40 minutes on this task. Write at least 250 words."}
+                      <h2 className="text-2xl font-black mb-8 text-slate-900 leading-tight">Writing Task</h2>
+                      <div className="bg-ielts-light-blue p-6 rounded-lg border border-blue-200 mb-8">
+                        <p className="text-slate-700 font-medium leading-relaxed italic">
+                          {test.content.instruction}
                         </p>
                       </div>
-                      <div className="prose prose-slate max-w-none text-lg leading-relaxed text-slate-700 whitespace-pre-wrap">
+                      <div className="prose prose-slate max-w-none text-[17px] leading-[1.8] text-slate-700 whitespace-pre-wrap font-serif">
                         {test.content.prompt}
                       </div>
                     </div>
@@ -211,28 +307,28 @@ export default function ExamPage() {
             </Panel>
             
             <PanelResizeHandle className="w-1.5 bg-slate-200 hover:bg-ielts-blue transition-colors cursor-col-resize flex items-center justify-center">
-              <div className="h-8 w-0.5 bg-slate-400 rounded-full" />
+              <div className="h-10 w-0.5 bg-slate-400 rounded-full" />
             </PanelResizeHandle>
             
             <Panel defaultSize={50} minSize={30}>
-              <div className="h-full overflow-y-auto p-8 ielts-scrollbar">
-                <div className="max-w-3xl mx-auto">
+              <div className="h-full overflow-y-auto p-10 ielts-scrollbar bg-slate-50">
+                <div className="max-w-2xl mx-auto">
                   {test.type === 'READING' ? (
-                    test.questions?.map((q: any, idx: number) => renderQuestion(q, idx))
+                    renderQuestion(currentQuestion, currentQuestionIdx)
                   ) : (
                     <div className="h-full flex flex-col gap-4">
                       <textarea 
-                        className="flex-1 w-full p-8 bg-white border-2 border-slate-100 rounded-3xl outline-none focus:border-ielts-blue transition-all font-sans text-lg leading-relaxed text-slate-700 shadow-sm resize-none"
-                        placeholder="Type your answer here..."
+                        className="flex-1 w-full p-8 bg-white border border-slate-300 rounded-lg outline-none focus:border-ielts-blue transition-all font-sans text-lg leading-relaxed text-slate-700 shadow-inner resize-none min-h-[500px]"
+                        placeholder="Type your essay here..."
                         value={answers['writing_response'] || ''}
                         onChange={(e) => setAnswers(prev => ({ ...prev, writing_response: e.target.value }))}
                       />
-                      <div className="flex justify-between items-center px-4">
-                        <div className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="flex justify-between items-center px-2">
+                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                           Word Count: {(answers['writing_response'] || '').trim().split(/\s+/).filter(Boolean).length}
                         </div>
-                        <div className="text-xs text-slate-400 italic">
-                          Auto-saved
+                        <div className="text-[10px] text-slate-400 italic">
+                          Auto-saved to local storage
                         </div>
                       </div>
                     </div>
@@ -242,30 +338,36 @@ export default function ExamPage() {
             </Panel>
           </PanelGroup>
         ) : (
-          <div className="h-full flex flex-col">
+          <div className="h-full flex flex-col bg-slate-50">
             {/* Listening Audio Player */}
-            <div className="bg-slate-50 border-b border-slate-200 px-8 py-4 flex items-center gap-6">
+            <div className="bg-white border-b border-slate-300 px-10 py-6 flex items-center gap-8 shadow-sm">
               <button 
                 onClick={() => {
                   if (audioRef.current?.paused) audioRef.current.play();
                   else audioRef.current?.pause();
                 }}
-                className="w-12 h-12 bg-ielts-blue text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition-all"
+                className="w-14 h-14 bg-ielts-blue text-white rounded-full flex items-center justify-center shadow-md hover:bg-blue-700 transition-all shrink-0"
               >
-                <Play size={24} className="ml-1" />
+                <Play size={28} className="ml-1" />
               </button>
               <div className="flex-1">
-                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-ielts-blue w-1/3" />
+                <div className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-widest">Listening Audio Track</div>
+                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-ielts-blue w-1/4" />
                 </div>
               </div>
-              <div className="text-xs font-black text-slate-400 uppercase tracking-widest">Listening Audio</div>
+              <div className="flex items-center gap-2 text-slate-400">
+                <Volume2 size={20} />
+                <div className="w-24 h-1 bg-slate-200 rounded-full">
+                  <div className="h-full bg-slate-400 w-3/4" />
+                </div>
+              </div>
               <audio ref={audioRef} src={test.content.audioUrl} />
             </div>
             
-            <div className="flex-1 overflow-y-auto p-8 ielts-scrollbar">
-              <div className="max-w-3xl mx-auto">
-                {test.questions?.map((q: any, idx: number) => renderQuestion(q, idx))}
+            <div className="flex-1 overflow-y-auto p-10 ielts-scrollbar">
+              <div className="max-w-2xl mx-auto bg-white p-10 rounded-xl border border-slate-200 shadow-sm">
+                {renderQuestion(currentQuestion, currentQuestionIdx)}
               </div>
             </div>
           </div>
@@ -273,28 +375,48 @@ export default function ExamPage() {
       </main>
 
       {/* Footer */}
-      <footer className="ielts-test-footer h-14 border-t border-slate-200 px-8 flex items-center justify-between bg-white z-50">
-        <div className="flex items-center gap-8 overflow-x-auto no-scrollbar">
-          {test.questions?.map((q: any, idx: number) => (
-            <button 
-              key={q.id}
-              onClick={() => {
-                const el = document.getElementById(`question-${q.id}`);
-                el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${
-                answers[q.id] ? 'bg-ielts-blue text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-              }`}
-            >
-              {idx + 1}
-            </button>
-          ))}
+      <footer className="ielts-test-footer">
+        <div className="flex items-center h-full">
+          <div className="flex items-center h-full overflow-x-auto no-scrollbar">
+            {questions.map((q: any, idx: number) => (
+              <div 
+                key={q.id}
+                onClick={() => setCurrentQuestionIdx(idx)}
+                className={`ielts-question-nav-item ${currentQuestionIdx === idx ? 'active' : ''} ${answers[q.id] ? 'answered' : ''} ${reviewList[q.id] ? 'review' : ''}`}
+              >
+                <span className="mb-1">{idx + 1}</span>
+              </div>
+            ))}
+          </div>
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="flex border border-slate-200 rounded-lg overflow-hidden">
-            <button className="p-2 hover:bg-slate-50 border-r border-slate-200"><ChevronLeft size={20} /></button>
-            <button className="p-2 hover:bg-slate-50"><ChevronRight size={20} /></button>
+          <button 
+            onClick={() => setReviewList(prev => ({ ...prev, [currentQuestion?.id]: !prev[currentQuestion?.id] }))}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded border transition-all text-xs font-bold ${
+              reviewList[currentQuestion?.id] 
+                ? 'bg-amber-100 border-amber-300 text-amber-700' 
+                : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <HelpCircle size={14} />
+            Review
+          </button>
+          <div className="flex border border-slate-300 rounded overflow-hidden shadow-sm">
+            <button 
+              disabled={currentQuestionIdx === 0}
+              onClick={() => setCurrentQuestionIdx(prev => prev - 1)}
+              className="p-2 bg-white hover:bg-slate-50 border-r border-slate-300 disabled:opacity-50 transition-colors"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button 
+              disabled={currentQuestionIdx === questions.length - 1}
+              onClick={() => setCurrentQuestionIdx(prev => prev + 1)}
+              className="p-2 bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              <ChevronRight size={20} />
+            </button>
           </div>
         </div>
       </footer>

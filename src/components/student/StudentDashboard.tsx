@@ -12,7 +12,14 @@ import {
   TrendingUp,
   Star,
   ClipboardCheck,
-  Calendar
+  Calendar,
+  Target,
+  Award,
+  ChevronRight,
+  Bell,
+  Search,
+  User,
+  History as HistoryIcon
 } from 'lucide-react';
 import { TestModule, WritingTest } from '../../types';
 
@@ -54,33 +61,59 @@ export default function StudentDashboard({
   startTest
 }: StudentDashboardProps) {
   return (
-    <div className="max-w-7xl mx-auto w-full p-8">
-      {/* Welcome Section */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-12 flex justify-between items-end"
-      >
+    <div className="max-w-7xl mx-auto w-full p-10">
+      {/* Header */}
+      <header className="flex items-center justify-between mb-12">
         <div>
-          <h2 className="text-5xl font-black text-slate-900 mb-4 tracking-tight">
-            Welcome back, {user.name?.split(' ')[0] || 'Candidate'}
-          </h2>
-          <p className="text-slate-500 text-xl max-w-2xl leading-relaxed">
-            Your IELTS journey is progressing well. You have {practiceTasks.filter(t => !t.completed).length} goals to complete today.
-          </p>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">Welcome back, {user?.name.split(' ')[0]}!</h1>
+          <p className="text-slate-500 font-medium text-lg">Your IELTS journey is 65% complete. Keep going!</p>
         </div>
-        <div className="flex gap-4">
-          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center">
-              <TrendingUp size={24} />
-            </div>
-            <div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Avg. Band</div>
-              <div className="text-xl font-black text-slate-900">6.5</div>
-            </div>
+        <div className="flex items-center gap-4">
+          <div className="relative hidden md:block">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search tests..." 
+              className="bg-white border border-slate-200 rounded-2xl pl-12 pr-6 py-3 outline-none focus:border-ielts-blue transition-all w-64 shadow-sm"
+            />
+          </div>
+          <button className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-500 hover:bg-slate-50 transition-all shadow-sm relative">
+            <Bell size={20} />
+            <span className="absolute top-3 right-3 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
+          </button>
+        </div>
+      </header>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+        <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm flex items-center gap-6">
+          <div className="w-16 h-16 bg-blue-50 text-ielts-blue rounded-2xl flex items-center justify-center">
+            <Target size={32} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Target Band</p>
+            <p className="text-3xl font-black text-slate-900 tracking-tighter">7.5</p>
           </div>
         </div>
-      </motion.div>
+        <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm flex items-center gap-6">
+          <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
+            <Award size={32} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Tests Taken</p>
+            <p className="text-3xl font-black text-slate-900 tracking-tighter">{userResults.length}</p>
+          </div>
+        </div>
+        <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm flex items-center gap-6">
+          <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
+            <TrendingUp size={32} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Avg. Score</p>
+            <p className="text-3xl font-black text-slate-900 tracking-tighter">6.5</p>
+          </div>
+        </div>
+      </div>
 
       <div className="grid lg:grid-cols-3 gap-12">
         {/* Left Column: Tests */}
@@ -92,7 +125,7 @@ export default function StudentDashboard({
                 <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
                   <BookOpen size={20} />
                 </div>
-                <h3 className="text-2xl font-black text-slate-900">Reading Modules</h3>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tighter">Reading Modules</h3>
               </div>
             </div>
             <div className="grid md:grid-cols-2 gap-6">
@@ -109,7 +142,7 @@ export default function StudentDashboard({
                 <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
                   <Headphones size={20} />
                 </div>
-                <h3 className="text-2xl font-black text-slate-900">Listening Modules</h3>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tighter">Listening Modules</h3>
               </div>
             </div>
             <div className="grid md:grid-cols-2 gap-6">
@@ -126,7 +159,7 @@ export default function StudentDashboard({
                 <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
                   <PenTool size={20} />
                 </div>
-                <h3 className="text-2xl font-black text-slate-900">Writing Modules</h3>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tighter">Writing Modules</h3>
               </div>
             </div>
             <div className="grid md:grid-cols-2 gap-6">
@@ -136,52 +169,29 @@ export default function StudentDashboard({
             </div>
           </section>
 
-          {/* Speaking Tests */}
-          <section>
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
-                  <Mic size={20} />
-                </div>
-                <h3 className="text-2xl font-black text-slate-900">Speaking Modules</h3>
-              </div>
-            </div>
-            <div className="grid md:grid-cols-2 gap-6">
-              {speakingTests.map(test => (
-                <TestCard key={test.id} test={test} type="speaking" onStart={() => startTest('speaking', test)} />
-              ))}
-              {speakingTests.length === 0 && (
-                <TestCard 
-                  test={{ id: 'speaking-demo', title: 'Speaking Practice Test 1', duration: 15 }} 
-                  type="speaking" 
-                  onStart={() => startTest('speaking', { id: 'speaking-demo', title: 'Speaking Practice Test 1', duration: 15 })} 
-                />
-              )}
-            </div>
-          </section>
-
           {/* Practice History */}
           {userResults.length > 0 && (
             <section>
               <div className="flex items-center gap-3 mb-8">
-                <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
-                  <CheckCircle size={20} />
+                <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center">
+                  <HistoryIcon size={20} />
                 </div>
-                <h3 className="text-2xl font-black text-slate-900">Practice History</h3>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tighter">Practice History</h3>
               </div>
-              <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm overflow-hidden">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/50 border-b border-slate-100">
+                    <tr className="bg-slate-50/50 border-b border-slate-200">
                       <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Module</th>
                       <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Score</th>
                       <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Band</th>
                       <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                      <th className="px-8 py-5"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {userResults.map((res, idx) => (
-                      <tr key={res.id} className={idx < userResults.length - 1 ? 'border-b border-slate-50' : ''}>
+                      <tr key={res.id} className={idx < userResults.length - 1 ? 'border-b border-slate-100' : ''}>
                         <td className="px-8 py-6">
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
@@ -228,10 +238,10 @@ export default function StudentDashboard({
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-xl shadow-slate-200/20"
+            className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm"
           >
             <div className="flex items-center justify-between mb-8">
-              <h3 className="text-xl font-black text-slate-900">Practice Goals</h3>
+              <h3 className="text-xl font-black text-slate-900 tracking-tighter">Practice Goals</h3>
               <Calendar className="text-slate-300" size={20} />
             </div>
 
@@ -255,7 +265,7 @@ export default function StudentDashboard({
                 <button 
                   disabled={isAddingTask}
                   type="submit"
-                  className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-slate-800 transition-all disabled:opacity-50"
+                  className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-ielts-blue transition-all disabled:opacity-50"
                 >
                   <Plus size={24} />
                 </button>
@@ -296,14 +306,14 @@ export default function StudentDashboard({
           </motion.div>
 
           {/* Quick Stats */}
-          <div className="bg-ielts-blue p-8 rounded-[40px] text-white shadow-xl shadow-blue-200/50">
-            <h3 className="text-xl font-black mb-6">Exam Readiness</h3>
-            <div className="space-y-6">
+          <div className="bg-ielts-blue p-10 rounded-[40px] text-white shadow-xl shadow-blue-900/20">
+            <h3 className="text-xl font-black mb-8 tracking-tighter">Exam Readiness</h3>
+            <div className="space-y-8">
               <StatRow label="Vocabulary" value={75} />
               <StatRow label="Grammar" value={60} />
               <StatRow label="Speed" value={90} />
             </div>
-            <button className="w-full mt-8 py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-black text-xs uppercase tracking-widest transition-all">
+            <button className="w-full mt-10 py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-black text-xs uppercase tracking-widest transition-all">
               View Detailed Analytics
             </button>
           </div>
@@ -322,7 +332,7 @@ function TestCard({ test, type, onStart }: { test: any, type: string, onStart: (
   };
 
   return (
-    <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-6 group">
+    <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-6 group">
       <div className="flex items-center justify-between">
         <div className={`w-12 h-12 ${colors[type as keyof typeof colors]} rounded-2xl flex items-center justify-center`}>
           {type === 'reading' && <BookOpen size={24} />}
@@ -333,7 +343,7 @@ function TestCard({ test, type, onStart }: { test: any, type: string, onStart: (
         <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">{type}</span>
       </div>
       <div>
-        <h4 className="font-black text-xl text-slate-900 mb-2 group-hover:text-ielts-blue transition-colors">{test.title}</h4>
+        <h4 className="font-black text-xl text-slate-900 mb-2 group-hover:text-ielts-blue transition-colors tracking-tighter">{test.title}</h4>
         <div className="flex items-center gap-4 text-xs text-slate-400 font-bold uppercase tracking-widest">
           <div className="flex items-center gap-1.5"><Clock size={14} /> {test.duration} mins</div>
           <div className="flex items-center gap-1.5"><ClipboardCheck size={14} /> 40 Questions</div>
@@ -351,12 +361,12 @@ function TestCard({ test, type, onStart }: { test: any, type: string, onStart: (
 
 function StatRow({ label, value }: { label: string, value: number }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex justify-between text-[10px] font-black uppercase tracking-widest opacity-70">
         <span>{label}</span>
         <span>{value}%</span>
       </div>
-      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+      <div className="h-2 bg-white/10 rounded-full overflow-hidden">
         <motion.div 
           initial={{ width: 0 }}
           animate={{ width: `${value}%` }}
@@ -366,3 +376,4 @@ function StatRow({ label, value }: { label: string, value: number }) {
     </div>
   );
 }
+

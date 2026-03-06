@@ -24,54 +24,108 @@ async function main() {
     },
   });
 
-  // 2. Create Sample Test
-  const test = await prisma.test.upsert({
+  // 2. Create Sample Reading Test
+  const readingTest = await prisma.test.upsert({
     where: { id: 'sample-reading-1' },
     update: {},
     create: {
       id: 'sample-reading-1',
-      title: 'Academic Reading Practice 1',
+      title: 'Academic Reading: The Future of Urban Transport',
       type: 'READING',
       duration: 60,
       content: { 
         passages: [
-          { title: "The History of the Internet", text: "The internet began in the 1960s as a way for government researchers to share information..." }
+          { 
+            title: "The Evolution of Urban Mobility", 
+            text: "Cities around the world are facing unprecedented challenges in managing the movement of people and goods. As urban populations continue to swell, traditional transport systems are reaching their breaking point. The rise of autonomous vehicles, electric micro-mobility, and integrated transit platforms promises to revolutionize how we navigate the urban landscape.\n\nHistorically, cities were designed around the needs of the automobile. Wide boulevards and extensive parking lots dominated urban planning in the mid-20th century. However, this car-centric approach has led to chronic congestion, air pollution, and a decline in public health. Today, planners are shifting their focus towards 'human-centric' design, prioritizing pedestrians, cyclists, and efficient public transit.\n\nOne of the most significant developments is the emergence of Mobility as a Service (MaaS). This concept integrates various forms of transport services into a single mobility service accessible on demand. By using a digital platform, commuters can plan, book, and pay for multiple modes of transport, such as buses, trains, bike-sharing, and ride-hailing, all in one place."
+          }
         ] 
       },
     }
   });
 
-  // 3. Create Sample Questions
-  await prisma.question.upsert({
-    where: { id: 'q1' },
-    update: {},
-    create: {
-      id: 'q1',
-      testId: test.id,
+  // Questions for Reading
+  const readingQuestions = [
+    {
+      id: 'rq1',
+      testId: readingTest.id,
       type: 'MCQ',
       order: 1,
       structure: {
-        prompt: "When did the internet begin?",
-        options: ["1950s", "1960s", "1970s", "1980s"]
+        prompt: "What is the main focus of modern urban planners according to the text?",
+        options: ["Expanding parking facilities", "Human-centric design", "Increasing car speed", "Building more boulevards"]
       },
-      correctAnswers: "1960s"
+      correctAnswers: "Human-centric design"
+    },
+    {
+      id: 'rq2',
+      testId: readingTest.id,
+      type: 'TRUE_FALSE',
+      order: 2,
+      structure: {
+        prompt: "Mobility as a Service (MaaS) requires users to pay for each transport mode separately."
+      },
+      correctAnswers: "FALSE"
+    },
+    {
+      id: 'rq3',
+      testId: readingTest.id,
+      type: 'FILL_GAPS',
+      order: 3,
+      structure: {
+        prompt: "In the mid-20th century, urban planning was dominated by a ______ approach."
+      },
+      correctAnswers: "car-centric"
+    }
+  ];
+
+  for (const q of readingQuestions) {
+    await prisma.question.upsert({ where: { id: q.id }, update: {}, create: q });
+  }
+
+  // 3. Create Sample Listening Test
+  const listeningTest = await prisma.test.upsert({
+    where: { id: 'sample-listening-1' },
+    update: {},
+    create: {
+      id: 'sample-listening-1',
+      title: 'Listening Practice: Library Orientation',
+      type: 'LISTENING',
+      duration: 30,
+      content: {
+        audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", // Dummy audio
+        instruction: "You will hear a library manager giving an orientation to new students."
+      }
     }
   });
 
-  await prisma.question.upsert({
-    where: { id: 'q2' },
-    update: {},
-    create: {
-      id: 'q2',
-      testId: test.id,
+  const listeningQuestions = [
+    {
+      id: 'lq1',
+      testId: listeningTest.id,
       type: 'FILL_GAPS',
+      order: 1,
+      structure: {
+        prompt: "The library is open until ______ PM on weekdays."
+      },
+      correctAnswers: "9"
+    },
+    {
+      id: 'lq2',
+      testId: listeningTest.id,
+      type: 'MCQ',
       order: 2,
       structure: {
-        prompt: "The internet was created for ______ researchers."
+        prompt: "Where is the quiet study area located?",
+        options: ["First floor", "Second floor", "Basement", "Attic"]
       },
-      correctAnswers: "government"
+      correctAnswers: "Second floor"
     }
-  });
+  ];
+
+  for (const q of listeningQuestions) {
+    await prisma.question.upsert({ where: { id: q.id }, update: {}, create: q });
+  }
 
   // 4. Create Writing Test
   await prisma.test.upsert({
@@ -79,12 +133,12 @@ async function main() {
     update: {},
     create: {
       id: 'sample-writing-1',
-      title: 'General Writing Task 1',
+      title: 'Academic Writing Task 2: Technology and Society',
       type: 'WRITING',
-      duration: 60,
+      duration: 40,
       content: {
-        instruction: "You should spend about 20 minutes on this task. Write at least 150 words.",
-        prompt: "You recently stayed at a hotel and were unhappy with the service. Write a letter to the manager to complain."
+        instruction: "You should spend about 40 minutes on this task. Write at least 250 words.",
+        prompt: "Some people believe that technology has made our lives more complex and stressful, while others argue that it has made life easier and more convenient. Discuss both views and give your own opinion."
       }
     }
   });

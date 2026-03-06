@@ -72,23 +72,23 @@ export const testService = {
     return response.data;
   },
   submitResult: async (resultData: any) => {
-    const response = await api.post('/results', resultData);
+    const response = await api.post('/tests/submit', resultData);
     return response.data;
   },
   getMyResults: async () => {
-    const response = await api.get('/results/me');
+    const response = await api.get('/tests/results/me');
     return response.data;
   },
   getResultById: async (id: string) => {
-    const response = await api.get(`/results/${id}`);
+    const response = await api.get(`/tests/results/${id}`);
     return response.data;
   },
   getAdminSubmissions: async () => {
-    const response = await api.get('/admin/submissions');
+    const response = await api.get('/tests/results/admin');
     return response.data;
   },
   updateSubmission: async (id: string, updateData: any) => {
-    const response = await api.patch(`/admin/submissions/${id}`, updateData);
+    const response = await api.patch(`/tests/results/${id}`, updateData);
     return response.data;
   },
   clearAllData: async () => {

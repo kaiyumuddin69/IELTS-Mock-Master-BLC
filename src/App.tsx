@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { authService, testService } from './services/api';
 
 // Pages
@@ -12,12 +12,23 @@ import ExamPage from './pages/ExamPage';
 import AdminDashboard from './pages/AdminDashboard';
 import TestEditor from './pages/TestEditor';
 import ResultDetailPage from './pages/ResultDetailPage';
+import SubmissionReview from './pages/SubmissionReview';
 
 const ProtectedRoute = ({ children, role }: { children: React.ReactNode; role?: string }) => {
   const user = authService.getCurrentUser();
   if (!user) return <Navigate to="/login" />;
   if (role && user.role !== role) return <Navigate to="/" />;
   return <>{children}</>;
+};
+
+const LandingPageWrapper = ({ onAuthSuccess }: { onAuthSuccess: (user: any) => void }) => {
+  const navigate = useNavigate();
+  return <LandingPage onLoginClick={() => navigate('/login')} onAuthSuccess={onAuthSuccess} />;
+};
+
+const LoginWrapper = ({ onAuthSuccess }: { onAuthSuccess: (user: any) => void }) => {
+  const navigate = useNavigate();
+  return <Login onAuthSuccess={onAuthSuccess} onBack={() => navigate('/')} />;
 };
 
 export default function App() {
@@ -62,8 +73,8 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<LandingPage onLoginClick={() => {}} onAuthSuccess={handleAuthSuccess} />} />
-        <Route path="/login" element={<Login onAuthSuccess={handleAuthSuccess} onBack={() => {}} />} />
+        <Route path="/" element={<LandingPageWrapper onAuthSuccess={handleAuthSuccess} />} />
+        <Route path="/login" element={<LoginWrapper onAuthSuccess={handleAuthSuccess} />} />
         
         <Route 
           path="/student/dashboard" 
@@ -105,6 +116,15 @@ export default function App() {
           element={
             <ProtectedRoute role="ADMIN">
               <TestEditor />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/admin/review/:resultId" 
+          element={
+            <ProtectedRoute role="ADMIN">
+              <SubmissionReview />
             </ProtectedRoute>
           } 
         />
